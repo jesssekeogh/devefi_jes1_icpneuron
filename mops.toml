@@ -1,0 +1,7 @@
+[dependencies]
+base = "0.12.1"
+devefi = "0.2.2"
+neuro = "0.3.0"
+account = "1.0.1"
+account-identifier = "1.0.2"
+encoding = "https://github.com/aviate-labs/encoding.mo#master@2711d18727e954b11afc0d37945608512b5fbce2"

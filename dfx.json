@@ -1,14 +1,14 @@
 {
   "canisters": {
-    "devefi_staking_backend": {
-      "main": "src/devefi_staking_backend/main.mo",
+    "devefi_staking": {
+      "main": "src/main.mo",
       "type": "motoko"
     }
   },
   "defaults": {
     "build": {
       "args": "",
-      "packtool": ""
+      "packtool": "mops sources"
     }
   },
   "output_env_file": ".env",
