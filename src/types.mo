@@ -2,6 +2,7 @@ import Result "mo:base/Result";
 import Node "mo:devefi/node";
 import StakeVector "./stake";
 import ICRC55 "mo:devefi/ICRC55";
+import Debug "mo:base/Debug";
 
 module {
 
@@ -24,6 +25,13 @@ module {
     public func toShared(node : Mem) : Shared {
         switch (node) {
             case (#stake(t)) #stake(StakeVector.toShared(t));
+        };
+    };
+
+    public func getDefaults(id:Text, all_ledgers : [ICRC55.SupportedLedger]) : CreateRequest {
+        switch(id) {
+            case ("stake") #stake(StakeVector.defaults(all_ledgers));
+            case (_) Debug.trap("Unknown variant");
         };
     };
 

@@ -1,4 +1,3 @@
-
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 import ThrottleVector "./throttle";
@@ -30,14 +29,14 @@ module {
         };
     };
 
-    public func sourceMap(id: Node.NodeId, custom : Mem, thiscan : Principal) : Result.Result<[ICRC55.Endpoint], Text> {
+    public func sourceMap(id : Node.NodeId, custom : Mem, thiscan : Principal) : Result.Result<[ICRC55.Endpoint], Text> {
         switch (custom) {
             case (#throttle(t)) ThrottleVector.Request2Sources(t, id, thiscan);
             //...
         };
     };
 
-    public func destinationMap(custom : Mem,  destinationsProvided: [ICRC55.DestinationEndpoint] ) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
+    public func destinationMap(custom : Mem, destinationsProvided : [ICRC55.DestinationEndpoint]) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
         switch (custom) {
             case (#throttle(t)) ThrottleVector.Request2Destinations(t, destinationsProvided);
             //...
@@ -61,7 +60,7 @@ module {
     public func meta(all_ledgers : [ICRC55.SupportedLedger]) : [ICRC55.NodeMeta] {
         [
             ThrottleVector.meta(all_ledgers),
-        //...
+            //...
         ];
     };
 };
