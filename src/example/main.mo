@@ -44,7 +44,7 @@ actor class () = this {
                 ledger = NTN_LEDGER;
             };
         };
-        supportedLedgers = Array.map<Principal, ICRC55.SupportedLedger>(supportedLedgers, func (x) = #ic(x));
+        supportedLedgers = Array.map<Principal, ICRC55.SupportedLedger>(supportedLedgers, func(x) = #ic(x));
         settings = {
             Node.DEFAULT_SETTINGS with
             MAX_SOURCES = 1 : Nat8;
@@ -128,19 +128,19 @@ actor class () = this {
         nodes.icrc55_get_node(req);
     };
 
-    public query ({ caller }) func icrc55_get_controller_nodes() : async ICRC55.GetControllerNodes {
-        nodes.icrc55_get_controller_nodes(caller);
+    public query ({ caller }) func icrc55_get_controller_nodes(req : ICRC55.GetControllerNodesRequest) : async [Node.NodeShared<T.Shared>] {
+        nodes.icrc55_get_controller_nodes(caller, req);
     };
 
     public shared ({ caller }) func icrc55_set_controller_nodes(vid : ICRC55.LocalNodeId) : async ICRC55.DeleteNodeResp {
         nodes.icrc55_delete_node(caller, vid);
     };
 
-    public shared ({caller}) func icrc55_delete_node(vid : ICRC55.LocalNodeId) : async ICRC55.DeleteNodeResp {
+    public shared ({ caller }) func icrc55_delete_node(vid : ICRC55.LocalNodeId) : async ICRC55.DeleteNodeResp {
         nodes.icrc55_delete_node(caller, vid);
     };
 
-    public shared ({caller}) func icrc55_modify_node(vid : ICRC55.LocalNodeId, req : ICRC55.NodeModifyRequest, creq : T.ModifyRequest) : async ICRC55.NodeModifyResponse {
+    public shared ({ caller }) func icrc55_modify_node(vid : ICRC55.LocalNodeId, req : ?ICRC55.NodeModifyRequest, creq : ?T.ModifyRequest) : async Node.ModifyNodeResp<T.Shared> {
         nodes.icrc55_modify_node(caller, vid, req, creq);
     };
 
@@ -152,10 +152,6 @@ actor class () = this {
         dvf.start<system>(Principal.fromActor(this));
         nodes.setThisCanister(Principal.fromActor(this));
     };
-
-
-
-
 
     // ---------- Debug functions -----------
 
@@ -170,7 +166,7 @@ actor class () = this {
     // Dashboard explorer doesn't show icrc accounts in text format, this does
     // Hard to send tokens to Candid ICRC Accounts
     public query func get_node_addr(vid : Node.NodeId) : async ?Text {
-        let ?(_,vec) = nodes.getNode(#id(vid)) else return null;
+        let ?(_, vec) = nodes.getNode(#id(vid)) else return null;
 
         let subaccount = ?Node.port2subaccount({
             vid;

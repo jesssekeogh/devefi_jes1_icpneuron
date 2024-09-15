@@ -1,15 +1,13 @@
 import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Timer "mo:base/Timer";
-import Option "mo:base/Option";
-import Random "mo:base/Random";
 import Nat64 "mo:base/Nat64";
 import Blob "mo:base/Blob";
 import T "./types";
+import A "./async";
 import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
-import IcpGovernanceInterface "mo:neuro/interfaces/nns_interface";
 import Tools "mo:neuro/tools";
 import AccountIdentifier "mo:account-identifier";
 import Hex "mo:encoding/Hex";
@@ -23,10 +21,12 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
     /// Constants ///
     /////////////////
 
+    // async funcs get 1 minute do their work and then we try again
+    let TIMEOUT_NANOS : Nat64 = (60 * 1_000_000_000);
+
     let MINIMUM_STAKE = 1_0000_0000;
 
-    let IcpGovernance = actor ("rrkah-fqaaa-aaaaa-aaaaq-cai") : IcpGovernanceInterface.Self;
-
+    let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
     let ICP_LEDGER = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
 
     let NODE_FEE = 10_000;
@@ -57,12 +57,15 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
             };
         };
         supportedLedgers = Array.map<Principal, ICRC55.SupportedLedger>(supportedLedgers, func(x) = #ic(x));
-        settings = Node.DEFAULT_SETTINGS;
+        settings = {
+            Node.DEFAULT_SETTINGS with ALLOW_TEMP_NODE_CREATION = true;
+        };
         toShared = T.toShared;
         sourceMap = T.sourceMap;
         destinationMap = T.destinationMap;
         createRequest2Mem = T.createRequest2Mem;
         modifyRequestMut = T.modifyRequestMut;
+        getDefaults = T.getDefaults;
         meta = T.meta;
     });
 
@@ -71,73 +74,45 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
     /////////////////////////
 
     ignore Timer.recurringTimer<system>(
-        #seconds(2),
+        #seconds(3),
+        func() : async () {
+            label vloop for ((vid, vec) in nodes.entries()) {
+                switch (vec.custom) {
+                    case (#stake(nodeMem)) {
+                        await A.generate_nonce(nodeMem, TIMEOUT_NANOS);
+                        await A.claim_neuron(nodeMem, TIMEOUT_NANOS, dvf.me(), ICP_GOVERNANCE, ICP_LEDGER);
+                        await A.update_followee(nodeMem, TIMEOUT_NANOS, ICP_GOVERNANCE);
+                        await A.update_delay(nodeMem, TIMEOUT_NANOS, ICP_GOVERNANCE);
+                        await A.add_hotkey(nodeMem, TIMEOUT_NANOS, ICP_GOVERNANCE);
+                        await A.remove_hotkey(nodeMem, TIMEOUT_NANOS, ICP_GOVERNANCE);
+                    };
+                };
+            };
+        },
+    );
+
+    ignore Timer.recurringTimer<system>(
+        #seconds(3),
         func() : async () {
             label vloop for ((vid, vec) in nodes.entries()) {
 
                 if (not nodes.hasDestination(vec, 0)) continue vloop;
-
                 let ?source = nodes.getSource(vec, 0) else continue vloop;
 
                 let bal = source.balance();
                 let ledger_fee = source.fee();
-
-                // node needs the min bal so it can stake and not get deleted
-                // we continue if there is not atleast this amount of icp here
-                if (bal <= NODE_FEE) continue vloop;
+                if (bal <= NODE_FEE + ledger_fee) continue vloop;
 
                 switch (vec.custom) {
                     case (#stake(nodeMem)) {
-                        // check node has no neuron
-                        // IDEA: a node can own many neurons
-                        if (Option.isSome(nodeMem.states.neuronId)) continue vloop;
+                        // If does not have a nonce we can't send ICP to it
+                        let #Done(nonce) = nodeMem.internals.generate_nonce else continue vloop;
 
-                        // async tasks:
-                        if (not Option.isSome(nodeMem.states.nonce)) {
-                            // generate a random nonce that fits into Nat64
-                            let ?nonce = Random.Finite(await Random.blob()).range(64) else continue vloop;
+                        let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(dvf.me(), nonce);
 
-                            nodeMem.states.nonce := ?Nat64.fromNat(nonce);
-                        } else if (not Option.isSome(nodeMem.states.neuronSubaccount)) {
-                            // neurons subaccounts contain random nonces so one canister can have many neurons
-                            let ?nonce = nodeMem.states.nonce;
-                            let newSubaccount : Blob = Tools.computeNeuronStakingSubaccountBytes(nodeMem.init.neuron_controller, nonce);
+                        source.send(#external_account({ owner = ICP_GOVERNANCE; subaccount = ?neuronSubaccount }), bal - NODE_FEE);
 
-                            // send from source to neuron account
-                            let stakeAmount : Nat = bal - NODE_FEE;
-                            source.send(#external_account({ owner = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"); subaccount = ?newSubaccount }), stakeAmount);
-
-                            nodeMem.states.neuronSubaccount := ?newSubaccount;
-                        } else if (not Option.isSome(nodeMem.states.neuronId)) {
-                            let ?nonce = nodeMem.states.nonce;
-
-                            let { command } = await IcpGovernance.manage_neuron({
-                                id = null;
-                                neuron_id_or_subaccount = null;
-                                command = ? #ClaimOrRefresh({
-                                    by = ? #MemoAndController({
-                                        controller = ?nodeMem.init.neuron_controller;
-                                        memo = nonce;
-                                    });
-                                });
-                            });
-
-                            let ?commandList = command else continue vloop;
-                            switch (commandList) {
-                                case (#ClaimOrRefresh { refreshed_neuron_id }) {
-
-                                    let ?{ id } = refreshed_neuron_id else continue vloop;
-                                    // save the neuronId
-                                    nodeMem.states.neuronId := ?id;
-                                };
-                                case _ {};
-                            };
-                        } else {
-                            // all of the above is okay, we can send any new icp from the source to the neuron account
-                            let ?neuronSub = nodeMem.states.neuronSubaccount;
-                            let stakeAmount : Nat = bal - NODE_FEE;
-                            source.send(#external_account({ owner = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"); subaccount = ?neuronSub }), stakeAmount);
-                        };
+                        // TODO also check for maturity and spawn here
                     };
                 };
             };
@@ -160,8 +135,8 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
         nodes.icrc55_get_node(req);
     };
 
-    public query ({ caller }) func icrc55_get_controller_nodes() : async ICRC55.GetControllerNodes {
-        nodes.icrc55_get_controller_nodes(caller);
+    public query ({ caller }) func icrc55_get_controller_nodes(req : ICRC55.GetControllerNodesRequest) : async [Node.NodeShared<T.Shared>] {
+        nodes.icrc55_get_controller_nodes(caller, req);
     };
 
     public shared ({ caller }) func icrc55_set_controller_nodes(vid : ICRC55.LocalNodeId) : async ICRC55.DeleteNodeResp {
@@ -172,8 +147,12 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
         nodes.icrc55_delete_node(caller, vid);
     };
 
-    public shared ({ caller }) func icrc55_modify_node(vid : ICRC55.LocalNodeId, req : ICRC55.NodeModifyRequest, creq : T.ModifyRequest) : async ICRC55.NodeModifyResponse {
+    public shared ({ caller }) func icrc55_modify_node(vid : ICRC55.LocalNodeId, req : ?ICRC55.NodeModifyRequest, creq : ?T.ModifyRequest) : async Node.ModifyNodeResp<T.Shared> {
         nodes.icrc55_modify_node(caller, vid, req, creq);
+    };
+
+    public query func icrc55_get_defaults(id : Text) : async T.CreateRequest {
+        nodes.icrc55_get_defaults(id);
     };
 
     // We need to start the vector manually once when canister is installed, because we can't init dvf from the body
@@ -208,4 +187,5 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
 
         AccountIdentifier.accountIdentifier(Principal.fromActor(this), subaccount) |> Blob.toArray(_) |> ?Hex.encode(_);
     };
+
 };

@@ -2,18 +2,19 @@ import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 import Result "mo:base/Result";
 import Array "mo:base/Array";
+import Nat8 "mo:base/Nat8";
 
 module {
 
     public func meta(all_ledgers : [ICRC55.SupportedLedger]) : ICRC55.NodeMeta {
         {
-            id = "throttle";
+            id = "throttle"; // This has to be same as the variant in vec.custom
             name = "Throttle";
             description = "Send X tokens every Y seconds";
             governed_by = "Neutrinite DAO";
             supported_ledgers = all_ledgers;
             pricing = "1 NTN";
-        }
+        };
     };
 
     // Internal vector state
@@ -78,8 +79,6 @@ module {
         #ok();
     };
 
-
-
     // Public shared state
     public type Shared = {
         init : {
@@ -96,7 +95,7 @@ module {
         };
     };
 
-    // Convert memory to shared 
+    // Convert memory to shared
     public func toShared(t : Mem) : Shared {
         {
             init = t.init;
@@ -114,19 +113,22 @@ module {
 
     // Mapping of source node ports
     public func Request2Sources(t : Mem, id : Node.NodeId, thiscan : Principal) : Result.Result<[ICRC55.Endpoint], Text> {
-        #ok([
-            #ic {
-                ledger = t.init.ledger;
-                account = {
-                    owner = thiscan;
-                    subaccount = ?Node.port2subaccount({
-                        vid = id;
-                        flow = #input;
-                        id = 0;
-                    });
-                };
-            }
-        ]);
+        #ok(
+            Array.tabulate<ICRC55.Endpoint>(
+                Nat8.toNat(t.variables.source_count),
+                func(idx : Nat) = #ic {
+                    ledger = t.init.ledger;
+                    account = {
+                        owner = thiscan;
+                        subaccount = ?Node.port2subaccount({
+                            vid = id;
+                            flow = #input;
+                            id = Nat8.fromNat(idx);
+                        });
+                    };
+                },
+            )
+        );
     };
 
     // Mapping of destination node ports
@@ -134,17 +136,17 @@ module {
     // Allows you to change destinations and dynamically create new ones based on node state upon creation or modification
     // Fills in the account field when destination accounts are given
     // or leaves them null when not given
-    public func Request2Destinations(t : Mem, req:[ICRC55.DestinationEndpoint]) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
-        let dest_0_account : ?ICRC55.Account = do { 
+    public func Request2Destinations(t : Mem, req : [ICRC55.DestinationEndpoint]) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
+        let dest_0_account : ?ICRC55.Account = do {
             if (req.size() >= 1) {
                 let #ic(x) = req[0] else return #err("Invalid destination 0");
                 if (x.ledger != t.init.ledger) {
                     return #err("Invalid destination 0 ledger");
-                    };
+                };
                 x.account;
             } else {
-                null;    
-            }
+                null;
+            };
         };
         #ok([
             #ic {
@@ -159,7 +161,5 @@ module {
         #fixed : Nat64;
         #rnd : { min : Nat64; max : Nat64 };
     };
-
-    
 
 };
