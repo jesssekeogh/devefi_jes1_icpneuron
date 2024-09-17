@@ -1,34 +1,21 @@
 import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Timer "mo:base/Timer";
-import Nat64 "mo:base/Nat64";
 import Blob "mo:base/Blob";
 import T "./types";
-import A "./async";
+import V "./vector";
 import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
-import Tools "mo:neuro/tools";
 import AccountIdentifier "mo:account-identifier";
 import Hex "mo:encoding/Hex";
 
-shared ({ caller = owner }) actor class VectorStaking() = this {
+shared ({ caller = owner }) actor class () = this {
 
     // Staking Vector Component
     // Stake neurons in vector nodes
 
-    /////////////////
-    /// Constants ///
-    /////////////////
-
-    // async funcs get 1 minute do their work and then we try again
-    let TIMEOUT_NANOS : Nat64 = (60 * 1_000_000_000);
-
-    let MINIMUM_STAKE = 1_0000_0000;
-
-    let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
     let ICP_LEDGER = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
-
     let NODE_FEE = 10_000;
 
     let supportedLedgers : [Principal] = [
@@ -58,7 +45,10 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
         };
         supportedLedgers = Array.map<Principal, ICRC55.SupportedLedger>(supportedLedgers, func(x) = #ic(x));
         settings = {
-            Node.DEFAULT_SETTINGS with ALLOW_TEMP_NODE_CREATION = true;
+            Node.DEFAULT_SETTINGS with
+            ALLOW_TEMP_NODE_CREATION = true;
+            PYLON_NAME = "NNS Vector";
+            PYLON_GOVERNED_BY = "Neutrinite DAO";
         };
         toShared = T.toShared;
         sourceMap = T.sourceMap;
@@ -69,54 +59,29 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
         meta = T.meta;
     });
 
+    let vector = V.NeuronVector({
+        node_fee = NODE_FEE;
+        canister_id = dvf.me();
+        icp_ledger = ICP_LEDGER;
+    });
+
     /////////////////////////
     /// Main DeVeFi logic ///
     /////////////////////////
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
-        func() : async () {
-            label vloop for ((vid, vec) in nodes.entries()) {
-                switch (vec.custom) {
-                    case (#stake(nodeMem)) {
-                        await A.generate_nonce(nodeMem, TIMEOUT_NANOS);
-                        await A.claim_neuron(nodeMem, TIMEOUT_NANOS, dvf.me(), ICP_GOVERNANCE, ICP_LEDGER);
-                        await A.update_followee(nodeMem, TIMEOUT_NANOS, ICP_GOVERNANCE);
-                        await A.update_delay(nodeMem, TIMEOUT_NANOS, ICP_GOVERNANCE);
-                        await A.add_hotkey(nodeMem, TIMEOUT_NANOS, ICP_GOVERNANCE);
-                        await A.remove_hotkey(nodeMem, TIMEOUT_NANOS, ICP_GOVERNANCE);
-                    };
-                };
-            };
-        },
+        func() : async () { vector.sync_cycle(nodes) },
     );
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
-        func() : async () {
-            label vloop for ((vid, vec) in nodes.entries()) {
+        func() : async () { await* vector.async_cycle(nodes) },
+    );
 
-                if (not nodes.hasDestination(vec, 0)) continue vloop;
-                let ?source = nodes.getSource(vec, 0) else continue vloop;
-
-                let bal = source.balance();
-                let ledger_fee = source.fee();
-                if (bal <= NODE_FEE + ledger_fee) continue vloop;
-
-                switch (vec.custom) {
-                    case (#stake(nodeMem)) {
-                        // If does not have a nonce we can't send ICP to it
-                        let #Done(nonce) = nodeMem.internals.generate_nonce else continue vloop;
-
-                        let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(dvf.me(), nonce);
-
-                        source.send(#external_account({ owner = ICP_GOVERNANCE; subaccount = ?neuronSubaccount }), bal - NODE_FEE);
-
-                        // TODO also check for maturity and spawn here
-                    };
-                };
-            };
-        },
+    ignore Timer.recurringTimer<system>(
+        #seconds(608400), // Just over 7 days
+        func() : async () { await* vector.maturity_cycle(nodes) },
     );
 
     public query func icrc55_get_nodefactory_meta() : async ICRC55.NodeFactoryMetaResp {
@@ -139,10 +104,6 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
         nodes.icrc55_get_controller_nodes(caller, req);
     };
 
-    public shared ({ caller }) func icrc55_set_controller_nodes(vid : ICRC55.LocalNodeId) : async ICRC55.DeleteNodeResp {
-        nodes.icrc55_delete_node(caller, vid);
-    };
-
     public shared ({ caller }) func icrc55_delete_node(vid : ICRC55.LocalNodeId) : async ICRC55.DeleteNodeResp {
         nodes.icrc55_delete_node(caller, vid);
     };
@@ -161,10 +122,30 @@ shared ({ caller = owner }) actor class VectorStaking() = this {
     public shared ({ caller }) func start() {
         assert (Principal.isController(caller));
         dvf.start<system>(Principal.fromActor(this));
-        nodes.setThisCanister(Principal.fromActor(this));
+        nodes.start<system>(Principal.fromActor(this));
     };
 
     // ---------- Debug functions -----------
+
+    public shared ({ caller }) func clear_mem() : () {
+        assert (caller == owner);
+
+        label vloop for ((vid, vec) in nodes.entries()) {
+            switch (vec.custom) {
+                case (#nns_neuron(nodeMem)) {
+                    nodeMem.internals.generate_nonce := #Init;
+                    nodeMem.internals.claim_neuron := #Init;
+                    nodeMem.internals.update_followee := #Init;
+                    nodeMem.internals.update_delay := #Init;
+                    nodeMem.internals.add_hotkey := #Init;
+                    nodeMem.internals.remove_hotkey := #Init;
+                    nodeMem.internals.maturity_operations.spawn_maturity := #Init;
+                    nodeMem.internals.maturity_operations.claim_maturity := #Init;
+                    nodeMem.internals.maturity_operations.spawning_neurons := [];
+                };
+            };
+        };
+    };
 
     public query func get_ledger_errors() : async [[Text]] {
         dvf.getErrors();
