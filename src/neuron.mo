@@ -1,18 +1,22 @@
 import Result "mo:base/Result";
 import Node "mo:devefi/node";
 import ICRC55 "mo:devefi/ICRC55";
+import U "mo:devefi/utils";
 import Debug "mo:base/Debug";
+import Array "mo:base/Array";
+import Nat8 "mo:base/Nat8";
 
 module {
 
     public func meta(all_ledgers : [ICRC55.SupportedLedger]) : ICRC55.NodeMeta {
         {
-            id = "stake";
-            name = "Stake";
-            description = "Stake neurons and receive maturity";
+            id = "nns_neuron"; // This has to be same as the variant in vec.custom
+            name = "NNS Neuron";
+            description = "Stake NNS neurons and receive ICP maturity";
             governed_by = "Neutrinite DAO";
             supported_ledgers = all_ledgers;
             pricing = "0.0001 ICP"; // TODO change to NTN
+            version = #alpha;
         };
     };
 
@@ -39,9 +43,11 @@ module {
             var update_delay : OperationState<Nat64>; // dissolve delay seconds
             var add_hotkey : OperationState<Principal>; // node controller
             var remove_hotkey : OperationState<Principal>; // last hotkey removed
-            var spawn_maturity : OperationState<Nat64>; // timestamp
-            var claim_maturity : OperationState<Nat64>; // timestamp
-            var spawning_neurons : [Nat64];
+            maturity_operations : {
+                var spawn_maturity : OperationState<Nat64>; // timestamp
+                var claim_maturity : OperationState<Nat64>; // timestamp
+                var spawning_neurons : [Nat64];
+            };
         };
     };
 
@@ -57,7 +63,7 @@ module {
         };
     };
 
-    public func CreateRequest2Mem(t : CreateRequest) : Mem {
+    public func createRequest2Mem(t : CreateRequest) : Mem {
         {
             init = t.init;
             variables = {
@@ -73,9 +79,11 @@ module {
                 var update_delay = #Init;
                 var add_hotkey = #Init;
                 var remove_hotkey = #Init;
-                var spawn_maturity = #Init;
-                var claim_maturity = #Init;
-                var spawning_neurons = [];
+                maturity_operations = {
+                    var spawn_maturity = #Init;
+                    var claim_maturity = #Init;
+                    var spawning_neurons = [];
+                };
             };
         };
     };
@@ -99,7 +107,7 @@ module {
 
     };
 
-    public func ModifyRequestMut(mem : Mem, t : ModifyRequest) : Result.Result<(), Text> {
+    public func modifyRequestMut(mem : Mem, t : ModifyRequest) : Result.Result<(), Text> {
         // when variable changes set the associating internal back to init
         #ok();
     };
@@ -121,9 +129,11 @@ module {
             update_delay : OperationState<Nat64>;
             add_hotkey : OperationState<Principal>;
             remove_hotkey : OperationState<Principal>;
-            spawn_maturity : OperationState<Nat64>;
-            claim_maturity : OperationState<Nat64>;
-            spawning_neurons : [Nat64];
+            maturity_operations : {
+                spawn_maturity : OperationState<Nat64>; // timestamp
+                claim_maturity : OperationState<Nat64>; // timestamp
+                spawning_neurons : [Nat64];
+            };
         };
     };
 
@@ -143,28 +153,31 @@ module {
                 update_delay = t.internals.update_delay;
                 add_hotkey = t.internals.add_hotkey;
                 remove_hotkey = t.internals.remove_hotkey;
-                spawn_maturity = t.internals.spawn_maturity;
-                claim_maturity = t.internals.claim_maturity;
-                spawning_neurons = t.internals.spawning_neurons;
+                maturity_operations = {
+                    spawn_maturity = t.internals.maturity_operations.spawn_maturity;
+                    claim_maturity = t.internals.maturity_operations.claim_maturity;
+                    spawning_neurons = t.internals.maturity_operations.spawning_neurons;
+                };
             };
         };
     };
 
     // Mapping of source node ports
-    public func Request2Sources(t : Mem, id : Node.NodeId, thiscan : Principal) : Result.Result<[ICRC55.Endpoint], Text> {
-        #ok([
-            #ic {
+    public func request2Sources(t : Mem, id : Node.NodeId, thiscan : Principal) : Result.Result<[ICRC55.Endpoint], Text> {
+        #ok(
+            Array.tabulate<ICRC55.Endpoint>(1, func(idx:Nat) = #ic {
                 ledger = t.init.ledger;
                 account = {
                     owner = thiscan;
                     subaccount = ?Node.port2subaccount({
                         vid = id;
                         flow = #input;
-                        id = 0;
+                        id = Nat8.fromNat(idx);
                     });
                 };
-            }
-        ]);
+                name = "";
+            })
+        );
     };
 
     // Mapping of destination node ports
@@ -172,23 +185,16 @@ module {
     // Allows you to change destinations and dynamically create new ones based on node state upon creation or modification
     // Fills in the account field when destination accounts are given
     // or leaves them null when not given
-    public func Request2Destinations(t : Mem, req : [ICRC55.DestinationEndpoint]) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
-        let dest_0_account : ?ICRC55.Account = do {
-            if (req.size() >= 1) {
-                let #ic(x) = req[0] else return #err("Invalid destination 0");
-                if (x.ledger != t.init.ledger) {
-                    return #err("Invalid destination 0 ledger");
-                };
-                x.account;
-            } else {
-                null;
-            };
-        };
+    public func request2Destinations(t : Mem, req:[ICRC55.DestinationEndpoint]) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
+        let #ok(acc) = U.expectAccount(t.init.ledger, req, 0) else return #err("Invalid destination 0");
+
         #ok([
             #ic {
                 ledger = t.init.ledger;
-                account = dest_0_account;
+                account = acc;
+                name = "";
             }
         ]);
     };
+
 };
