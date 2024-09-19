@@ -4,6 +4,7 @@ import Timer "mo:base/Timer";
 import Blob "mo:base/Blob";
 import T "./types";
 import V "./vector";
+import N "./neuron";
 import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
@@ -133,15 +134,20 @@ shared ({ caller = owner }) actor class () = this {
         label vloop for ((vid, vec) in nodes.entries()) {
             switch (vec.custom) {
                 case (#nns_neuron(nodeMem)) {
-                    nodeMem.internals.generate_nonce := #Init;
-                    nodeMem.internals.claim_neuron := #Init;
-                    nodeMem.internals.update_followee := #Init;
-                    nodeMem.internals.update_delay := #Init;
-                    nodeMem.internals.add_hotkey := #Init;
-                    nodeMem.internals.remove_hotkey := #Init;
-                    nodeMem.internals.maturity_operations.spawn_maturity := #Init;
-                    nodeMem.internals.maturity_operations.claim_maturity := #Init;
-                    nodeMem.internals.maturity_operations.spawning_neurons := [];
+                    nodeMem.internal_lifecycle.claim_neuron := #Init;
+                    nodeMem.internal_lifecycle.update_delay := #Init;
+                    nodeMem.internal_lifecycle.start_dissolve := #Init;
+                    nodeMem.internal_lifecycle.disburse_neuron := #Init;
+
+                    nodeMem.internal_followees.update_followees := #Init;
+                    nodeMem.internal_followees.cached_followees := [];
+
+                    nodeMem.internal_hotkey.update_hotkey := #Init;
+                    nodeMem.internal_hotkey.cached_hotkey := null;
+
+                    nodeMem.internal_maturity.spawn_maturity := #Init;
+                    nodeMem.internal_maturity.claim_maturity := #Init;
+                    nodeMem.internal_maturity.spawning_neurons := [];
                 };
             };
         };
