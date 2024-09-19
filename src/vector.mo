@@ -165,7 +165,8 @@ module {
 
         private func start_dissolve(nodeMem : N.Mem) : async* () {
             let #Done(neuronId) = nodeMem.internal_lifecycle.claim_neuron else return;
-            if (not nodeMem.variables.start_dissolve) return;
+            let ?dissolve = nodeMem.variables.start_dissolve else return;
+            if (not dissolve) return;
 
             switch (nodeMem.internal_lifecycle.start_dissolve) {
                 case (#Init) {
@@ -201,7 +202,8 @@ module {
 
         private func disburse_neuron(nodeMem : N.Mem, refund : Node.Endpoint) : async* () {
             let #Done(neuronId) = nodeMem.internal_lifecycle.claim_neuron else return;
-            if (not nodeMem.variables.disburse_neuron) return;
+            let ?disburse = nodeMem.variables.disburse_neuron else return;
+            if (not disburse) return;
 
             switch (nodeMem.internal_lifecycle.disburse_neuron) {
                 case (#Init) {
