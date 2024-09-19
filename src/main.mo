@@ -81,7 +81,7 @@ shared ({ caller = owner }) actor class () = this {
     );
 
     ignore Timer.recurringTimer<system>(
-        #seconds(608400), // Just over 7 days
+        #seconds(86400), // every day
         func() : async () { await* vector.maturity_cycle(nodes) },
     );
 

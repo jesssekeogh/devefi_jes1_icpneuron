@@ -82,8 +82,7 @@ module {
             label vloop for ((vid, vec) in nodes.entries()) {
                 switch (vec.custom) {
                     case (#nns_neuron(nodeMem)) {
-
-                        // TODO once a week try spawn maturity and and disburse spawning neurons, set to 7 days (takes 7 days to spawn neurons)
+                        // TODO once a day try spawn maturity and and disburse spawning neurons
                     };
                 };
             };
@@ -367,7 +366,6 @@ module {
 
                     switch (nodeMem.internal_hotkey.cached_hotkey) {
                         case (?cachedHotkey) {
-                            // cache updated (old followee var removed) so remove and clear cache
                             if (hotkeyToSet != cachedHotkey) {
                                 switch (await* neuron.removeHotKey({ hot_key_to_remove = cachedHotkey })) {
                                     case (#ok(_)) {
