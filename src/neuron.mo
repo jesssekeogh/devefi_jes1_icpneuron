@@ -20,6 +20,14 @@ module {
         };
     };
 
+    public type NeuronId = Nat64;
+
+    public type Timestamp = Nat64;
+
+    public type Hotkey = Principal;
+
+    public type TopicFollowee = { topic : Int32; followee : Nat64 };
+
     public type OperationState<T> = {
         #Init;
         #Calling : Nat64; // Timestamp, retry after period
@@ -31,23 +39,30 @@ module {
             ledger : Principal;
         };
         variables : {
-            var dissolve_timestamp_seconds : ?Nat64;
-            var followee : ?Nat64;
-            var hotkey : ?Principal;
-            var hotkey_to_remove : ?Principal;
+            var delay_timestamp_seconds : ?Timestamp;
+            var followee : ?NeuronId;
+            var hotkey : ?Hotkey;
+            var start_dissolve : Bool;
+            var disburse_neuron : Bool;
         };
-        internals : {
-            var generate_nonce : OperationState<Nat64>; // nonce
-            var claim_neuron : OperationState<Nat64>; // neuronId
-            var update_followee : OperationState<Nat64>; // neuronId
-            var update_delay : OperationState<Nat64>; // dissolve delay seconds
-            var add_hotkey : OperationState<Principal>; // node controller
-            var remove_hotkey : OperationState<Principal>; // last hotkey removed
-            maturity_operations : {
-                var spawn_maturity : OperationState<Nat64>; // timestamp
-                var claim_maturity : OperationState<Nat64>; // timestamp
-                var spawning_neurons : [Nat64];
-            };
+        internal_lifecycle : {
+            var claim_neuron : OperationState<NeuronId>;
+            var update_delay : OperationState<Timestamp>;
+            var start_dissolve : OperationState<Timestamp>;
+            var disburse_neuron : OperationState<Timestamp>;
+        };
+        internal_followees : {
+            var update_followees : OperationState<NeuronId>;
+            var cached_followees : [TopicFollowee];
+        };
+        internal_hotkey : {
+            var update_hotkey : OperationState<Hotkey>;
+            var cached_hotkey : ?Hotkey;
+        };
+        internal_maturity : {
+            var spawn_maturity : OperationState<Timestamp>;
+            var claim_maturity : OperationState<Timestamp>;
+            var spawning_neurons : [NeuronId];
         };
     };
 
@@ -56,10 +71,11 @@ module {
             ledger : Principal;
         };
         variables : {
-            dissolve_timestamp_seconds : ?Nat64; // if this gets changed, we update to the new delay
-            followee : ?Nat64; // same as above. This will be set for all topics
-            hotkey : ?Principal;
-            hotkey_to_remove : ?Principal;
+            delay_timestamp_seconds : ?Timestamp;
+            followee : ?NeuronId;
+            hotkey : ?Hotkey;
+            start_dissolve : Bool;
+            disburse_neuron : Bool;
         };
     };
 
@@ -67,23 +83,30 @@ module {
         {
             init = t.init;
             variables = {
-                var dissolve_timestamp_seconds = t.variables.dissolve_timestamp_seconds;
+                var delay_timestamp_seconds = t.variables.delay_timestamp_seconds;
                 var followee = t.variables.followee;
                 var hotkey = t.variables.hotkey;
-                var hotkey_to_remove = t.variables.hotkey_to_remove;
+                var start_dissolve = t.variables.start_dissolve;
+                var disburse_neuron = t.variables.disburse_neuron;
             };
-            internals = {
-                var generate_nonce = #Init;
+            internal_lifecycle = {
                 var claim_neuron = #Init;
-                var update_followee = #Init;
                 var update_delay = #Init;
-                var add_hotkey = #Init;
-                var remove_hotkey = #Init;
-                maturity_operations = {
-                    var spawn_maturity = #Init;
-                    var claim_maturity = #Init;
-                    var spawning_neurons = [];
-                };
+                var start_dissolve = #Init;
+                var disburse_neuron = #Init;
+            };
+            internal_followees = {
+                var update_followees = #Init;
+                var cached_followees = [];
+            };
+            internal_hotkey = {
+                var update_hotkey = #Init;
+                var cached_hotkey = null;
+            };
+            internal_maturity = {
+                var spawn_maturity = #Init;
+                var claim_maturity = #Init;
+                var spawning_neurons = [];
             };
         };
     };
@@ -95,10 +118,11 @@ module {
                 ledger = ledger;
             };
             variables = {
-                dissolve_timestamp_seconds = null;
+                delay_timestamp_seconds = null;
                 followee = null;
                 hotkey = null;
-                hotkey_to_remove = null;
+                start_dissolve = false;
+                disburse_neuron = false;
             };
         };
     };
@@ -117,23 +141,30 @@ module {
             ledger : Principal;
         };
         variables : {
-            dissolve_timestamp_seconds : ?Nat64;
-            followee : ?Nat64;
-            hotkey : ?Principal;
-            hotkey_to_remove : ?Principal;
+            delay_timestamp_seconds : ?Timestamp;
+            followee : ?NeuronId;
+            hotkey : ?Hotkey;
+            start_dissolve : Bool;
+            disburse_neuron : Bool;
         };
-        internals : {
-            generate_nonce : OperationState<Nat64>;
-            claim_neuron : OperationState<Nat64>;
-            update_followee : OperationState<Nat64>;
-            update_delay : OperationState<Nat64>;
-            add_hotkey : OperationState<Principal>;
-            remove_hotkey : OperationState<Principal>;
-            maturity_operations : {
-                spawn_maturity : OperationState<Nat64>; // timestamp
-                claim_maturity : OperationState<Nat64>; // timestamp
-                spawning_neurons : [Nat64];
-            };
+        internal_lifecycle : {
+            claim_neuron : OperationState<NeuronId>;
+            update_delay : OperationState<Timestamp>;
+            start_dissolve : OperationState<Timestamp>;
+            disburse_neuron : OperationState<Timestamp>;
+        };
+        internal_followees : {
+            update_followees : OperationState<NeuronId>;
+            cached_followees : [TopicFollowee];
+        };
+        internal_hotkey : {
+            update_hotkey : OperationState<Hotkey>;
+            cached_hotkey : ?Hotkey;
+        };
+        internal_maturity : {
+            spawn_maturity : OperationState<Timestamp>;
+            claim_maturity : OperationState<Timestamp>;
+            spawning_neurons : [NeuronId];
         };
     };
 
@@ -141,23 +172,30 @@ module {
         {
             init = t.init;
             variables = {
-                dissolve_timestamp_seconds = t.variables.dissolve_timestamp_seconds;
+                delay_timestamp_seconds = t.variables.delay_timestamp_seconds;
                 followee = t.variables.followee;
                 hotkey = t.variables.hotkey;
-                hotkey_to_remove = t.variables.hotkey_to_remove;
+                start_dissolve = t.variables.start_dissolve;
+                disburse_neuron = t.variables.disburse_neuron;
             };
-            internals = {
-                generate_nonce = t.internals.generate_nonce;
-                claim_neuron = t.internals.claim_neuron;
-                update_followee = t.internals.update_followee;
-                update_delay = t.internals.update_delay;
-                add_hotkey = t.internals.add_hotkey;
-                remove_hotkey = t.internals.remove_hotkey;
-                maturity_operations = {
-                    spawn_maturity = t.internals.maturity_operations.spawn_maturity;
-                    claim_maturity = t.internals.maturity_operations.claim_maturity;
-                    spawning_neurons = t.internals.maturity_operations.spawning_neurons;
-                };
+            internal_lifecycle = {
+                claim_neuron = t.internal_lifecycle.claim_neuron;
+                update_delay = t.internal_lifecycle.update_delay;
+                start_dissolve = t.internal_lifecycle.start_dissolve;
+                disburse_neuron = t.internal_lifecycle.disburse_neuron;
+            };
+            internal_followees = {
+                update_followees = t.internal_followees.update_followees;
+                cached_followees = t.internal_followees.cached_followees;
+            };
+            internal_hotkey = {
+                update_hotkey = t.internal_hotkey.update_hotkey;
+                cached_hotkey = t.internal_hotkey.cached_hotkey;
+            };
+            internal_maturity = {
+                spawn_maturity = t.internal_maturity.spawn_maturity;
+                claim_maturity = t.internal_maturity.claim_maturity;
+                spawning_neurons = t.internal_maturity.spawning_neurons;
             };
         };
     };
@@ -165,18 +203,21 @@ module {
     // Mapping of source node ports
     public func request2Sources(t : Mem, id : Node.NodeId, thiscan : Principal) : Result.Result<[ICRC55.Endpoint], Text> {
         #ok(
-            Array.tabulate<ICRC55.Endpoint>(1, func(idx:Nat) = #ic {
-                ledger = t.init.ledger;
-                account = {
-                    owner = thiscan;
-                    subaccount = ?Node.port2subaccount({
-                        vid = id;
-                        flow = #input;
-                        id = Nat8.fromNat(idx);
-                    });
-                };
-                name = "";
-            })
+            Array.tabulate<ICRC55.Endpoint>(
+                1,
+                func(idx : Nat) = #ic {
+                    ledger = t.init.ledger;
+                    account = {
+                        owner = thiscan;
+                        subaccount = ?Node.port2subaccount({
+                            vid = id;
+                            flow = #input;
+                            id = Nat8.fromNat(idx);
+                        });
+                    };
+                    name = "";
+                },
+            )
         );
     };
 
@@ -185,7 +226,7 @@ module {
     // Allows you to change destinations and dynamically create new ones based on node state upon creation or modification
     // Fills in the account field when destination accounts are given
     // or leaves them null when not given
-    public func request2Destinations(t : Mem, req:[ICRC55.DestinationEndpoint]) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
+    public func request2Destinations(t : Mem, req : [ICRC55.DestinationEndpoint]) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
         let #ok(acc) = U.expectAccount(t.init.ledger, req, 0) else return #err("Invalid destination 0");
 
         #ok([
