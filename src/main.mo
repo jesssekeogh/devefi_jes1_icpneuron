@@ -4,19 +4,23 @@ import Timer "mo:base/Timer";
 import Blob "mo:base/Blob";
 import T "./types";
 import V "./vector";
-import N "./neuron";
 import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 import AccountIdentifier "mo:account-identifier";
 import Hex "mo:encoding/Hex";
 
-shared ({ caller = owner }) actor class () = this {
+import { NNS } "mo:neuro";
+import NTypes "mo:neuro/types";
+
+actor class () = this {
 
     // Staking Vector Component
     // Stake neurons in vector nodes
 
     let ICP_LEDGER = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+    let THIS_CANISTER = Principal.fromText("7cotl-6aaaa-aaaam-ade2q-cai");
+
     let NODE_FEE = 10_000;
 
     let supportedLedgers : [Principal] = [
@@ -62,7 +66,7 @@ shared ({ caller = owner }) actor class () = this {
 
     let vector = V.NeuronVector({
         node_fee = NODE_FEE;
-        canister_id = dvf.me();
+        canister_id = THIS_CANISTER;
         icp_ledger = ICP_LEDGER;
     });
 
@@ -128,8 +132,17 @@ shared ({ caller = owner }) actor class () = this {
 
     // ---------- Debug functions -----------
 
+    public func get_neuron(id : Nat64) : async NTypes.NnsInformationResult {
+        let neuron = NNS.Neuron({
+            nns_canister_id = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+            neuron_id = id;
+        });
+
+        return await* neuron.getInformation();
+    };
+
     public shared ({ caller }) func clear_mem() : () {
-        assert (caller == owner);
+        assert (Principal.isController(caller));
 
         label vloop for ((vid, vec) in nodes.entries()) {
             switch (vec.custom) {

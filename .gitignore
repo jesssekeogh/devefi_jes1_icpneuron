@@ -20,6 +20,7 @@ target/
 node_modules/
 dist/
 .svelte-kit/
+new_canister_ids.json
 
 # environment variables
 .env

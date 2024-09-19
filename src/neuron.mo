@@ -42,8 +42,8 @@ module {
             var delay_timestamp_seconds : ?Timestamp;
             var followee : ?NeuronId;
             var hotkey : ?Hotkey;
-            var start_dissolve : Bool;
-            var disburse_neuron : Bool;
+            var start_dissolve : ?Bool;
+            var disburse_neuron : ?Bool;
         };
         internal_lifecycle : {
             var claim_neuron : OperationState<NeuronId>;
@@ -74,8 +74,8 @@ module {
             delay_timestamp_seconds : ?Timestamp;
             followee : ?NeuronId;
             hotkey : ?Hotkey;
-            start_dissolve : Bool;
-            disburse_neuron : Bool;
+            start_dissolve : ?Bool;
+            disburse_neuron : ?Bool;
         };
     };
 
@@ -121,8 +121,8 @@ module {
                 delay_timestamp_seconds = null;
                 followee = null;
                 hotkey = null;
-                start_dissolve = false;
-                disburse_neuron = false;
+                start_dissolve = null;
+                disburse_neuron = null;
             };
         };
     };
@@ -144,8 +144,8 @@ module {
             delay_timestamp_seconds : ?Timestamp;
             followee : ?NeuronId;
             hotkey : ?Hotkey;
-            start_dissolve : Bool;
-            disburse_neuron : Bool;
+            start_dissolve : ?Bool;
+            disburse_neuron : ?Bool;
         };
         internal_lifecycle : {
             claim_neuron : OperationState<NeuronId>;

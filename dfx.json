@@ -1,6 +1,6 @@
 {
   "canisters": {
-    "devefi_staking": {
+    "nns_vector": {
       "main": "src/main.mo",
       "type": "motoko"
     }
