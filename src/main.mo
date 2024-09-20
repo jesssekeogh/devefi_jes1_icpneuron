@@ -9,7 +9,6 @@ import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 import AccountIdentifier "mo:account-identifier";
 import Hex "mo:encoding/Hex";
-
 import { NNS } "mo:neuro";
 import NTypes "mo:neuro/types";
 
@@ -147,20 +146,14 @@ actor class () = this {
         label vloop for ((vid, vec) in nodes.entries()) {
             switch (vec.custom) {
                 case (#nns_neuron(nodeMem)) {
-                    nodeMem.internal_lifecycle.claim_neuron := #Init;
-                    nodeMem.internal_lifecycle.update_delay := #Init;
-                    nodeMem.internal_lifecycle.start_dissolve := #Init;
-                    nodeMem.internal_lifecycle.disburse_neuron := #Init;
-
-                    nodeMem.internal_followees.update_followees := #Init;
-                    nodeMem.internal_followees.cached_followees := [];
-
-                    nodeMem.internal_hotkey.update_hotkey := #Init;
-                    nodeMem.internal_hotkey.cached_hotkey := null;
-
-                    nodeMem.internal_maturity.spawn_maturity := #Init;
-                    nodeMem.internal_maturity.claim_maturity := #Init;
-                    nodeMem.internal_maturity.spawning_neurons := [];
+                    nodeMem.internals.claim_neuron := #Init;
+                    nodeMem.internals.update_delay := #Init;
+                    nodeMem.internals.start_dissolve := #Init;
+                    nodeMem.internals.disburse_neuron := #Init;
+                    nodeMem.internals.update_followees := #Init;
+                    nodeMem.internals.spawn_maturity := #Init;
+                    nodeMem.internals.claim_maturity := #Init;
+                    nodeMem.internals.spawning_neurons := [];
                 };
             };
         };

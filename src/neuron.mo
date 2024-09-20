@@ -20,47 +20,37 @@ module {
         };
     };
 
-    public type NeuronId = Nat64;
-
-    public type Timestamp = Nat64;
-
-    public type Hotkey = Principal;
-
-    public type TopicFollowee = { topic : Int32; followee : Nat64 };
-
     public type OperationState<T> = {
         #Init;
         #Calling : Nat64; // Timestamp, retry after period
         #Done : T; // The result of the operation
     };
 
+    public type NeuronId = { neuron_id : Nat64 };
+
+    public type Timestamp = { timestamp : Nat64 };
+
+    public type Delay = { delay_timestamp : Nat64 };
+
+    public type Maturity = { maturity_e8s : Nat64 };
+
     public type Mem = {
         init : {
             ledger : Principal;
         };
         variables : {
-            var delay_timestamp_seconds : ?Timestamp;
-            var followee : ?NeuronId;
-            var hotkey : ?Hotkey;
+            var delay_timestamp_seconds : ?Nat64;
+            var followee : ?Nat64;
             var start_dissolve : ?Bool;
             var disburse_neuron : ?Bool;
         };
-        internal_lifecycle : {
+        internals : {
             var claim_neuron : OperationState<NeuronId>;
-            var update_delay : OperationState<Timestamp>;
+            var update_delay : OperationState<Delay>;
             var start_dissolve : OperationState<Timestamp>;
-            var disburse_neuron : OperationState<Timestamp>;
-        };
-        internal_followees : {
+            var disburse_neuron : OperationState<NeuronId>;
             var update_followees : OperationState<NeuronId>;
-            var cached_followees : [TopicFollowee];
-        };
-        internal_hotkey : {
-            var update_hotkey : OperationState<Hotkey>;
-            var cached_hotkey : ?Hotkey;
-        };
-        internal_maturity : {
-            var spawn_maturity : OperationState<Timestamp>;
+            var spawn_maturity : OperationState<Maturity>;
             var claim_maturity : OperationState<Timestamp>;
             var spawning_neurons : [NeuronId];
         };
@@ -71,9 +61,8 @@ module {
             ledger : Principal;
         };
         variables : {
-            delay_timestamp_seconds : ?Timestamp;
-            followee : ?NeuronId;
-            hotkey : ?Hotkey;
+            delay_timestamp_seconds : ?Nat64;
+            followee : ?Nat64;
             start_dissolve : ?Bool;
             disburse_neuron : ?Bool;
         };
@@ -85,25 +74,15 @@ module {
             variables = {
                 var delay_timestamp_seconds = t.variables.delay_timestamp_seconds;
                 var followee = t.variables.followee;
-                var hotkey = t.variables.hotkey;
                 var start_dissolve = t.variables.start_dissolve;
                 var disburse_neuron = t.variables.disburse_neuron;
             };
-            internal_lifecycle = {
+            internals = {
                 var claim_neuron = #Init;
                 var update_delay = #Init;
                 var start_dissolve = #Init;
                 var disburse_neuron = #Init;
-            };
-            internal_followees = {
                 var update_followees = #Init;
-                var cached_followees = [];
-            };
-            internal_hotkey = {
-                var update_hotkey = #Init;
-                var cached_hotkey = null;
-            };
-            internal_maturity = {
                 var spawn_maturity = #Init;
                 var claim_maturity = #Init;
                 var spawning_neurons = [];
@@ -120,7 +99,6 @@ module {
             variables = {
                 delay_timestamp_seconds = null;
                 followee = null;
-                hotkey = null;
                 start_dissolve = null;
                 disburse_neuron = null;
             };
@@ -141,28 +119,18 @@ module {
             ledger : Principal;
         };
         variables : {
-            delay_timestamp_seconds : ?Timestamp;
-            followee : ?NeuronId;
-            hotkey : ?Hotkey;
+            delay_timestamp_seconds : ?Nat64;
+            followee : ?Nat64;
             start_dissolve : ?Bool;
             disburse_neuron : ?Bool;
         };
-        internal_lifecycle : {
+        internals : {
             claim_neuron : OperationState<NeuronId>;
-            update_delay : OperationState<Timestamp>;
+            update_delay : OperationState<Delay>;
             start_dissolve : OperationState<Timestamp>;
-            disburse_neuron : OperationState<Timestamp>;
-        };
-        internal_followees : {
+            disburse_neuron : OperationState<NeuronId>;
             update_followees : OperationState<NeuronId>;
-            cached_followees : [TopicFollowee];
-        };
-        internal_hotkey : {
-            update_hotkey : OperationState<Hotkey>;
-            cached_hotkey : ?Hotkey;
-        };
-        internal_maturity : {
-            spawn_maturity : OperationState<Timestamp>;
+            spawn_maturity : OperationState<Maturity>;
             claim_maturity : OperationState<Timestamp>;
             spawning_neurons : [NeuronId];
         };
@@ -174,28 +142,18 @@ module {
             variables = {
                 delay_timestamp_seconds = t.variables.delay_timestamp_seconds;
                 followee = t.variables.followee;
-                hotkey = t.variables.hotkey;
                 start_dissolve = t.variables.start_dissolve;
                 disburse_neuron = t.variables.disburse_neuron;
             };
-            internal_lifecycle = {
-                claim_neuron = t.internal_lifecycle.claim_neuron;
-                update_delay = t.internal_lifecycle.update_delay;
-                start_dissolve = t.internal_lifecycle.start_dissolve;
-                disburse_neuron = t.internal_lifecycle.disburse_neuron;
-            };
-            internal_followees = {
-                update_followees = t.internal_followees.update_followees;
-                cached_followees = t.internal_followees.cached_followees;
-            };
-            internal_hotkey = {
-                update_hotkey = t.internal_hotkey.update_hotkey;
-                cached_hotkey = t.internal_hotkey.cached_hotkey;
-            };
-            internal_maturity = {
-                spawn_maturity = t.internal_maturity.spawn_maturity;
-                claim_maturity = t.internal_maturity.claim_maturity;
-                spawning_neurons = t.internal_maturity.spawning_neurons;
+            internals = {
+                claim_neuron = t.internals.claim_neuron;
+                update_delay = t.internals.update_delay;
+                start_dissolve = t.internals.start_dissolve;
+                disburse_neuron = t.internals.disburse_neuron;
+                update_followees = t.internals.update_followees;
+                spawn_maturity = t.internals.spawn_maturity;
+                claim_maturity = t.internals.claim_maturity;
+                spawning_neurons = t.internals.spawning_neurons;
             };
         };
     };
