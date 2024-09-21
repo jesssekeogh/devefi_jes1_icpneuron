@@ -34,6 +34,8 @@ module {
 
     public type Maturity = { maturity_e8s : Nat64 };
 
+    public type TopicFollowee = { topic : Int32; followee : Nat64 };
+
     public type Mem = {
         init : {
             ledger : Principal;
@@ -49,7 +51,7 @@ module {
             var update_delay : OperationState<Delay>;
             var start_dissolve : OperationState<Timestamp>;
             var disburse_neuron : OperationState<NeuronId>;
-            var update_followees : OperationState<NeuronId>;
+            var update_followees : OperationState<[TopicFollowee]>;
             var spawn_maturity : OperationState<Maturity>;
             var claim_maturity : OperationState<Timestamp>;
             var spawning_neurons : [NeuronId];
@@ -129,7 +131,7 @@ module {
             update_delay : OperationState<Delay>;
             start_dissolve : OperationState<Timestamp>;
             disburse_neuron : OperationState<NeuronId>;
-            update_followees : OperationState<NeuronId>;
+            update_followees : OperationState<[TopicFollowee]>;
             spawn_maturity : OperationState<Maturity>;
             claim_maturity : OperationState<Timestamp>;
             spawning_neurons : [NeuronId];
