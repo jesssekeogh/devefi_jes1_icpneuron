@@ -2,7 +2,7 @@ import Time "mo:base/Time";
 import Int "mo:base/Int";
 import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
-import Array "mo:base/Array";
+import Vector "mo:vector/Class";
 import Option "mo:base/Option";
 import Blob "mo:base/Blob";
 import N "./neuron";
@@ -20,8 +20,8 @@ module {
         icp_ledger : Principal;
     }) {
 
-        // async funcs get 1 minute do their work and then we try again
-        let TIMEOUT_NANOS : Nat64 = (60 * 1_000_000_000);
+        // async funcs get 3 minutes to do their work and then we try again
+        let TIMEOUT_NANOS : Nat64 = (3 * 60 * 1_000_000_000);
 
         let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
 
@@ -91,7 +91,7 @@ module {
                     return true;
                 };
                 case (#Calling(startTime)) {
-                    return get_now_nanos() - startTime >= TIMEOUT_NANOS;
+                    return get_now_nanos() >= startTime + TIMEOUT_NANOS;
                 };
                 case (_) {
                     return false;
@@ -189,7 +189,7 @@ module {
 
                 nodeMem.internals.update_followees := #Calling(get_now_nanos());
 
-                let expectedFollowees : [{ topic : Int32; followee : Nat64 }] = [
+                let expectedFollowees : [N.TopicFollowee] = [
                     { topic = 0; followee = followeeToSet }, // Catch all
                     { topic = 4; followee = followeeToSet }, // Governance
                     { topic = 14; followee = followeeToSet }, // SNS & Community Fund
@@ -200,13 +200,17 @@ module {
                     neuron_id = neuron_id;
                 });
 
-                for (followee in expectedFollowees.vals()) {
-                    let #ok(_) = await* neuron.follow(followee) else return;
+                let successfulFollowees = Vector.Vector<N.TopicFollowee>();
+
+                label followeeLoop for (followee in expectedFollowees.vals()) {
+                    let #ok(_) = await* neuron.follow(followee) else continue followeeLoop;
+                    successfulFollowees.add(followee);
                 };
 
-                nodeMem.internals.update_followees := #Done({
-                    neuron_id = followeeToSet;
-                });
+                // store the successful followees only
+                if (successfulFollowees.size() > 0) {
+                    nodeMem.internals.update_followees := #Done(Vector.toArray(successfulFollowees));
+                };
             };
         };
     };
