@@ -34,7 +34,7 @@ module {
 
     public type Maturity = { maturity_e8s : Nat64 };
 
-    public type TopicFollowee = { topic : Int32; followee : Nat64 };
+    public type TopicAndFollowee = (Int32, Nat64);
 
     public type Mem = {
         init : {
@@ -44,16 +44,19 @@ module {
             var delay_timestamp_seconds : ?Nat64;
             var followee : ?Nat64;
             var start_dissolve : ?Bool;
-            var disburse_neuron : ?Bool;
         };
         internals : {
             var claim_neuron : OperationState<NeuronId>;
             var update_delay : OperationState<Delay>;
             var start_dissolve : OperationState<Timestamp>;
             var disburse_neuron : OperationState<NeuronId>;
-            var update_followees : OperationState<[TopicFollowee]>;
+            var update_followees : OperationState<NeuronId>;
             var spawn_maturity : OperationState<Maturity>;
             var claim_maturity : OperationState<Timestamp>;
+        };
+        cache : {
+            var maturity_e8s : Nat64;
+            var followees : [TopicAndFollowee];
             var spawning_neurons : [NeuronId];
         };
     };
@@ -66,7 +69,6 @@ module {
             delay_timestamp_seconds : ?Nat64;
             followee : ?Nat64;
             start_dissolve : ?Bool;
-            disburse_neuron : ?Bool;
         };
     };
 
@@ -77,7 +79,6 @@ module {
                 var delay_timestamp_seconds = t.variables.delay_timestamp_seconds;
                 var followee = t.variables.followee;
                 var start_dissolve = t.variables.start_dissolve;
-                var disburse_neuron = t.variables.disburse_neuron;
             };
             internals = {
                 var claim_neuron = #Init;
@@ -87,7 +88,11 @@ module {
                 var update_followees = #Init;
                 var spawn_maturity = #Init;
                 var claim_maturity = #Init;
+            };
+            cache = {
+                var followees = [];
                 var spawning_neurons = [];
+                var maturity_e8s = 0;
             };
         };
     };
@@ -102,7 +107,6 @@ module {
                 delay_timestamp_seconds = null;
                 followee = null;
                 start_dissolve = null;
-                disburse_neuron = null;
             };
         };
     };
@@ -124,17 +128,20 @@ module {
             delay_timestamp_seconds : ?Nat64;
             followee : ?Nat64;
             start_dissolve : ?Bool;
-            disburse_neuron : ?Bool;
         };
         internals : {
             claim_neuron : OperationState<NeuronId>;
             update_delay : OperationState<Delay>;
             start_dissolve : OperationState<Timestamp>;
             disburse_neuron : OperationState<NeuronId>;
-            update_followees : OperationState<[TopicFollowee]>;
+            update_followees : OperationState<NeuronId>;
             spawn_maturity : OperationState<Maturity>;
             claim_maturity : OperationState<Timestamp>;
+        };
+        cache : {
+            followees : [TopicAndFollowee];
             spawning_neurons : [NeuronId];
+            maturity_e8s : Nat64;
         };
     };
 
@@ -145,7 +152,6 @@ module {
                 delay_timestamp_seconds = t.variables.delay_timestamp_seconds;
                 followee = t.variables.followee;
                 start_dissolve = t.variables.start_dissolve;
-                disburse_neuron = t.variables.disburse_neuron;
             };
             internals = {
                 claim_neuron = t.internals.claim_neuron;
@@ -155,7 +161,11 @@ module {
                 update_followees = t.internals.update_followees;
                 spawn_maturity = t.internals.spawn_maturity;
                 claim_maturity = t.internals.claim_maturity;
-                spawning_neurons = t.internals.spawning_neurons;
+            };
+            cache = {
+                followees = t.cache.followees;
+                spawning_neurons = t.cache.spawning_neurons;
+                maturity_e8s = t.cache.maturity_e8s;
             };
         };
     };

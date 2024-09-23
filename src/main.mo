@@ -153,7 +153,6 @@ actor class () = this {
                     nodeMem.internals.update_followees := #Init;
                     nodeMem.internals.spawn_maturity := #Init;
                     nodeMem.internals.claim_maturity := #Init;
-                    nodeMem.internals.spawning_neurons := [];
                 };
             };
         };
