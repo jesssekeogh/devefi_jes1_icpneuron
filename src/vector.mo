@@ -2,6 +2,7 @@ import Time "mo:base/Time";
 import Int "mo:base/Int";
 import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
+import Map "mo:map/Map";
 import Vector "mo:vector/Class";
 import Option "mo:base/Option";
 import Blob "mo:base/Blob";
@@ -21,9 +22,15 @@ module {
     }) {
 
         // async funcs get 3 minutes to do their work and then we try again
-        let TIMEOUT_NANOS : Nat64 = (3 * 60 * 1_000_000_000);
+        let TIMEOUT_NANOS : Nat64 = (60 * 1_000_000_000);
 
         let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+
+        let TOPICS : [Int32] = [
+            0, // Catch all
+            4, // Governance
+            14, // SNS & Community Fund
+        ];
 
         let nns = NNS.Governance({
             canister_id = canister_id;
@@ -63,9 +70,7 @@ module {
                             await* update_followees(nodeMem);
                             await* start_dissolve(nodeMem);
                             await* disburse_neuron(nodeMem, vec.refund[0]); // TODO disburse to another output?
-                        } catch (error) {
-                            // TODO log errors
-                        };
+                        } catch (error) {};
                     };
                 };
             };
@@ -75,7 +80,10 @@ module {
             label vloop for ((vid, vec) in nodes.entries()) {
                 switch (vec.custom) {
                     case (#nns_neuron(nodeMem)) {
-                        // TODO once a day try spawn maturity and and disburse spawning neurons
+                        try {
+                            await* spawn_maturity(nodeMem);
+                            await* claim_maturity(nodeMem, vec.destinations[0]);
+                        } catch (error) {};
                     };
                 };
             };
@@ -155,8 +163,8 @@ module {
         private func disburse_neuron(nodeMem : N.Mem, refund : Node.Endpoint) : async* () {
             if (should_call(nodeMem.internals.disburse_neuron)) {
                 let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
-                let ?disburse = nodeMem.variables.disburse_neuron else return;
-                if (not disburse) return;
+                let ?dissolve = nodeMem.variables.start_dissolve else return;
+                if (not dissolve) return;
 
                 nodeMem.internals.disburse_neuron := #Calling(get_now_nanos());
 
@@ -165,12 +173,12 @@ module {
                     neuron_id = neuron_id;
                 });
 
-                let #ic(endpoint) = refund else return;
+                let #ic({ account }) = refund else return;
 
                 // TODO check if error can return "already disbursed"
                 let #ok(_) = await* neuron.disburse({
                     to_account = ?{
-                        hash = AccountIdentifier.accountIdentifier(endpoint.account.owner, Option.get(endpoint.account.subaccount, AccountIdentifier.defaultSubaccount())) |> Blob.toArray(_);
+                        hash = AccountIdentifier.accountIdentifier(account.owner, Option.get(account.subaccount, AccountIdentifier.defaultSubaccount())) |> Blob.toArray(_);
                     };
                     amount = null;
                 }) else return;
@@ -189,29 +197,77 @@ module {
 
                 nodeMem.internals.update_followees := #Calling(get_now_nanos());
 
-                let expectedFollowees : [N.TopicFollowee] = [
-                    { topic = 0; followee = followeeToSet }, // Catch all
-                    { topic = 4; followee = followeeToSet }, // Governance
-                    { topic = 14; followee = followeeToSet }, // SNS & Community Fund
-                ];
-
                 let neuron = NNS.Neuron({
                     nns_canister_id = ICP_GOVERNANCE;
                     neuron_id = neuron_id;
                 });
 
-                let successfulFollowees = Vector.Vector<N.TopicFollowee>();
+                let successfulFollowees = Map.fromIter<Int32, Nat64>(nodeMem.cache.followees.vals(), Map.i32hash);
 
-                label followeeLoop for (followee in expectedFollowees.vals()) {
-                    let #ok(_) = await* neuron.follow(followee) else continue followeeLoop;
-                    successfulFollowees.add(followee);
+                label topicLoop for (topic in TOPICS.vals()) {
+                    if (not Map.some(successfulFollowees, func(k : Int32, v : Nat64) : Bool { k == topic and v == followeeToSet })) {
+
+                        let #ok(_) = await* neuron.follow({
+                            topic = topic;
+                            followee = followeeToSet;
+                        }) else continue topicLoop;
+
+                        Map.set(successfulFollowees, Map.i32hash, topic, followeeToSet);
+                        nodeMem.cache.followees := Map.toArray(successfulFollowees);
+                    };
                 };
 
-                // store the successful followees only
-                if (successfulFollowees.size() > 0) {
-                    nodeMem.internals.update_followees := #Done(Vector.toArray(successfulFollowees));
+                if (
+                    Map.every(successfulFollowees, func(_k : Int32, v : Nat64) : Bool { v == followeeToSet }) and
+                    Map.size(successfulFollowees) == TOPICS.size()
+                ) {
+                    nodeMem.internals.update_followees := #Done({
+                        neuron_id = followeeToSet;
+                    });
                 };
             };
         };
+
+        private func spawn_maturity(nodeMem : N.Mem) : async* () {
+            let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
+
+            let neuron = NNS.Neuron({
+                nns_canister_id = ICP_GOVERNANCE;
+                neuron_id = neuron_id;
+            });
+
+            let #ok(neuronId) = await* neuron.spawn({
+                new_controller = null;
+                percentage_to_spawn = null;
+            }) else return;
+
+            let spawning = Vector.fromArray<N.NeuronId>(nodeMem.cache.spawning_neurons);
+
+            spawning.add({ neuron_id = neuronId });
+
+            nodeMem.cache.spawning_neurons := Vector.toArray(spawning);
+        };
+
+        private func claim_maturity(nodeMem : N.Mem, destination : Node.DestinationEndpoint) : async* () {
+            for ({ neuron_id } in nodeMem.cache.spawning_neurons.vals()) {
+                let neuron = NNS.Neuron({
+                    nns_canister_id = ICP_GOVERNANCE;
+                    neuron_id = neuron_id;
+                });
+
+                let #ic({ account = ?account }) = destination else return;
+
+                let #ok(_) = await* neuron.disburse({
+                    to_account = ?{
+                        hash = AccountIdentifier.accountIdentifier(account.owner, Option.get(account.subaccount, AccountIdentifier.defaultSubaccount())) |> Blob.toArray(_);
+                    };
+                    amount = null;
+                }) else return;
+
+                // TODO remove spawned neuron
+            };
+        };
+
     };
+
 };
