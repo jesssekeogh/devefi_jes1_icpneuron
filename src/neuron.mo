@@ -55,7 +55,6 @@ module {
             var claim_maturity : OperationState<Timestamp>;
         };
         cache : {
-            var maturity_e8s : Nat64;
             var followees : [TopicAndFollowee];
             var spawning_neurons : [NeuronId];
         };
@@ -92,7 +91,6 @@ module {
             cache = {
                 var followees = [];
                 var spawning_neurons = [];
-                var maturity_e8s = 0;
             };
         };
     };
@@ -141,7 +139,6 @@ module {
         cache : {
             followees : [TopicAndFollowee];
             spawning_neurons : [NeuronId];
-            maturity_e8s : Nat64;
         };
     };
 
@@ -165,7 +162,6 @@ module {
             cache = {
                 followees = t.cache.followees;
                 spawning_neurons = t.cache.spawning_neurons;
-                maturity_e8s = t.cache.maturity_e8s;
             };
         };
     };

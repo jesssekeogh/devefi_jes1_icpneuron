@@ -83,11 +83,6 @@ actor class () = this {
         func() : async () { await* vector.async_cycle(nodes) },
     );
 
-    ignore Timer.recurringTimer<system>(
-        #seconds(86400), // every day
-        func() : async () { await* vector.maturity_cycle(nodes) },
-    );
-
     public query func icrc55_get_nodefactory_meta() : async ICRC55.NodeFactoryMetaResp {
         nodes.icrc55_get_nodefactory_meta();
     };
