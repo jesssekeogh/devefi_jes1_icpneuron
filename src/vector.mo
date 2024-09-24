@@ -4,6 +4,7 @@ import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import Map "mo:map/Map";
 import Vector "mo:vector/Class";
+import Array "mo:base/Array";
 import Option "mo:base/Option";
 import Blob "mo:base/Blob";
 import N "./neuron";
@@ -249,6 +250,8 @@ module {
         };
 
         private func claim_maturity(nodeMem : N.Mem, destination : Node.DestinationEndpoint) : async* () {
+            let removed = Vector.Vector<N.NeuronId>();
+
             for ({ neuron_id } in nodeMem.cache.spawning_neurons.vals()) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = ICP_GOVERNANCE;
@@ -264,8 +267,21 @@ module {
                     amount = null;
                 }) else return;
 
-                // TODO remove spawned neuron
+                removed.add({ neuron_id = neuron_id });
             };
+
+            nodeMem.cache.spawning_neurons := Array.filter(
+                nodeMem.cache.spawning_neurons,
+                func(cacheId : N.NeuronId) : Bool {
+                    not Vector.contains(
+                        removed,
+                        cacheId,
+                        func(x : N.NeuronId, y : N.NeuronId) : Bool {
+                            x.neuron_id == y.neuron_id;
+                        },
+                    );
+                },
+            )
         };
 
     };
