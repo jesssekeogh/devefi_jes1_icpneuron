@@ -71,17 +71,6 @@ module {
                             await* update_followees(nodeMem);
                             await* start_dissolve(nodeMem);
                             await* disburse_neuron(nodeMem, vec.refund[0]); // TODO disburse to another output?
-                        } catch (error) {};
-                    };
-                };
-            };
-        };
-
-        public func maturity_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
-            label vloop for ((vid, vec) in nodes.entries()) {
-                switch (vec.custom) {
-                    case (#nns_neuron(nodeMem)) {
-                        try {
                             await* spawn_maturity(nodeMem);
                             await* claim_maturity(nodeMem, vec.destinations[0]);
                         } catch (error) {};
@@ -117,10 +106,10 @@ module {
         };
 
         private func update_delay(nodeMem : N.Mem) : async* () {
-            if (should_call(nodeMem.internals.update_delay)) {
-                let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
-                let ?dissolveTimestamp = nodeMem.variables.delay_timestamp_seconds else return
+            let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
+            let ?dissolveTimestamp = nodeMem.variables.delay_timestamp_seconds else return;
 
+            if (should_call(nodeMem.internals.update_delay)) {
                 nodeMem.internals.update_delay := #Calling(get_now_nanos());
 
                 let neuron = NNS.Neuron({
@@ -140,11 +129,11 @@ module {
         };
 
         private func start_dissolve(nodeMem : N.Mem) : async* () {
-            if (should_call(nodeMem.internals.start_dissolve)) {
-                let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
-                let ?dissolve = nodeMem.variables.start_dissolve else return;
-                if (not dissolve) return;
+            let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
+            let ?dissolve = nodeMem.variables.start_dissolve else return;
+            if (not dissolve) return;
 
+            if (should_call(nodeMem.internals.start_dissolve)) {
                 nodeMem.internals.start_dissolve := #Calling(get_now_nanos());
 
                 let neuron = NNS.Neuron({
@@ -162,11 +151,11 @@ module {
         };
 
         private func disburse_neuron(nodeMem : N.Mem, refund : Node.Endpoint) : async* () {
-            if (should_call(nodeMem.internals.disburse_neuron)) {
-                let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
-                let ?dissolve = nodeMem.variables.start_dissolve else return;
-                if (not dissolve) return;
+            let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
+            let ?dissolve = nodeMem.variables.start_dissolve else return;
+            if (not dissolve) return;
 
+            if (should_call(nodeMem.internals.disburse_neuron)) {
                 nodeMem.internals.disburse_neuron := #Calling(get_now_nanos());
 
                 let neuron = NNS.Neuron({
@@ -192,10 +181,10 @@ module {
 
         // Changing followees requires updating followee variable and setting #Init
         private func update_followees(nodeMem : N.Mem) : async* () {
-            if (should_call(nodeMem.internals.update_followees)) {
-                let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
-                let ?followeeToSet = nodeMem.variables.followee else return;
+            let #Done({ neuron_id }) = nodeMem.internals.claim_neuron else return;
+            let ?followeeToSet = nodeMem.variables.followee else return;
 
+            if (should_call(nodeMem.internals.update_followees)) {
                 nodeMem.internals.update_followees := #Calling(get_now_nanos());
 
                 let neuron = NNS.Neuron({
@@ -281,7 +270,7 @@ module {
                         },
                     );
                 },
-            )
+            );
         };
 
     };
