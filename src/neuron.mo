@@ -5,6 +5,7 @@ import U "mo:devefi/utils";
 import Debug "mo:base/Debug";
 import Array "mo:base/Array";
 import Nat8 "mo:base/Nat8";
+import NT "mo:neuro/types";
 
 module {
 
@@ -15,48 +16,34 @@ module {
             description = "Stake NNS neurons and receive ICP maturity";
             governed_by = "Neutrinite DAO";
             supported_ledgers = all_ledgers;
-            pricing = "0.0001 ICP"; // TODO change to NTN
+            pricing = "1 NTN";
             version = #alpha;
         };
     };
-
-    public type OperationState<T> = {
-        #Init;
-        #Calling : Nat64; // Timestamp, retry after period
-        #Done : T; // The result of the operation
-    };
-
-    public type NeuronId = { neuron_id : Nat64 };
-
-    public type Timestamp = { timestamp : Nat64 };
-
-    public type Delay = { delay_timestamp : Nat64 };
-
-    public type Maturity = { maturity_e8s : Nat64 };
-
-    public type TopicAndFollowee = (Int32, Nat64);
 
     public type Mem = {
         init : {
             ledger : Principal;
         };
         variables : {
-            var delay_timestamp_seconds : ?Nat64;
-            var followee : ?Nat64;
-            var start_dissolve : ?Bool;
+            var update_followee : ?NT.NnsNeuronId;
+            var update_dissolving : ?Bool;
+            var update_delay_seconds : ?Nat32; // can update to higher amount, just do this amount - cache amount = new amount
         };
         internals : {
-            var claim_neuron : OperationState<NeuronId>;
-            var update_delay : OperationState<Delay>;
-            var start_dissolve : OperationState<Timestamp>;
-            var disburse_neuron : OperationState<NeuronId>;
-            var update_followees : OperationState<NeuronId>;
-            var spawn_maturity : OperationState<Maturity>;
-            var claim_maturity : OperationState<Timestamp>;
+            var updating : { #Idle; #Calling : Nat64 }; // use try finally on every func and call the configs
         };
         cache : {
-            var followees : [TopicAndFollowee];
-            var spawning_neurons : [NeuronId];
+            var neuron_id : ?NT.NnsNeuronId;
+            var spawning_neurons : [NT.NnsNeuronId];
+            var maturity_e8s_equivalent : ?Nat64;
+            var cached_neuron_stake_e8s : ?Nat64;
+            var created_timestamp_seconds : ?Nat64;
+            var followees : [(Int32, { followees : [{ id : NT.NnsNeuronId }] })];
+            var dissolve_delay_seconds : ?Nat64;
+            var state : ?Int32;
+            var voting_power : ?Nat64;
+            var age_seconds : ?Nat64;
         };
     };
 
@@ -65,9 +52,9 @@ module {
             ledger : Principal;
         };
         variables : {
-            delay_timestamp_seconds : ?Nat64;
-            followee : ?Nat64;
-            start_dissolve : ?Bool;
+            update_followee : ?NT.NnsNeuronId;
+            update_dissolving : ?Bool;
+            update_delay_seconds : ?Nat32;
         };
     };
 
@@ -75,22 +62,24 @@ module {
         {
             init = t.init;
             variables = {
-                var delay_timestamp_seconds = t.variables.delay_timestamp_seconds;
-                var followee = t.variables.followee;
-                var start_dissolve = t.variables.start_dissolve;
+                var update_followee = t.variables.update_followee;
+                var update_dissolving = t.variables.update_dissolving;
+                var update_delay_seconds = t.variables.update_delay_seconds;
             };
             internals = {
-                var claim_neuron = #Init;
-                var update_delay = #Init;
-                var start_dissolve = #Init;
-                var disburse_neuron = #Init;
-                var update_followees = #Init;
-                var spawn_maturity = #Init;
-                var claim_maturity = #Init;
+                var updating = #Idle;
             };
             cache = {
-                var followees = [];
+                var neuron_id = null;
                 var spawning_neurons = [];
+                var maturity_e8s_equivalent = null;
+                var cached_neuron_stake_e8s = null;
+                var created_timestamp_seconds = null;
+                var followees = [];
+                var dissolve_delay_seconds = null;
+                var state = null;
+                var voting_power = null;
+                var age_seconds = null;
             };
         };
     };
@@ -102,9 +91,9 @@ module {
                 ledger = ledger;
             };
             variables = {
-                delay_timestamp_seconds = null;
-                followee = null;
-                start_dissolve = null;
+                update_followee = null;
+                update_dissolving = null;
+                update_delay_seconds = null;
             };
         };
     };
@@ -123,22 +112,24 @@ module {
             ledger : Principal;
         };
         variables : {
-            delay_timestamp_seconds : ?Nat64;
-            followee : ?Nat64;
-            start_dissolve : ?Bool;
+            update_followee : ?NT.NnsNeuronId;
+            update_dissolving : ?Bool;
+            update_delay_seconds : ?Nat32;
         };
         internals : {
-            claim_neuron : OperationState<NeuronId>;
-            update_delay : OperationState<Delay>;
-            start_dissolve : OperationState<Timestamp>;
-            disburse_neuron : OperationState<NeuronId>;
-            update_followees : OperationState<NeuronId>;
-            spawn_maturity : OperationState<Maturity>;
-            claim_maturity : OperationState<Timestamp>;
+            updating : { #Idle; #Calling : Nat64 };
         };
         cache : {
-            followees : [TopicAndFollowee];
-            spawning_neurons : [NeuronId];
+            neuron_id : ?NT.NnsNeuronId;
+            spawning_neurons : [NT.NnsNeuronId];
+            maturity_e8s_equivalent : ?Nat64;
+            cached_neuron_stake_e8s : ?Nat64;
+            created_timestamp_seconds : ?Nat64;
+            followees : [(Int32, { followees : [{ id : NT.NnsNeuronId }] })];
+            dissolve_delay_seconds : ?Nat64;
+            state : ?Int32;
+            voting_power : ?Nat64;
+            age_seconds : ?Nat64;
         };
     };
 
@@ -146,22 +137,24 @@ module {
         {
             init = t.init;
             variables = {
-                delay_timestamp_seconds = t.variables.delay_timestamp_seconds;
-                followee = t.variables.followee;
-                start_dissolve = t.variables.start_dissolve;
+                update_followee = t.variables.update_followee;
+                update_dissolving = t.variables.update_dissolving;
+                update_delay_seconds = t.variables.update_delay_seconds;
             };
             internals = {
-                claim_neuron = t.internals.claim_neuron;
-                update_delay = t.internals.update_delay;
-                start_dissolve = t.internals.start_dissolve;
-                disburse_neuron = t.internals.disburse_neuron;
-                update_followees = t.internals.update_followees;
-                spawn_maturity = t.internals.spawn_maturity;
-                claim_maturity = t.internals.claim_maturity;
+                updating = t.internals.updating;
             };
             cache = {
-                followees = t.cache.followees;
+                neuron_id = t.cache.neuron_id;
                 spawning_neurons = t.cache.spawning_neurons;
+                maturity_e8s_equivalent = t.cache.maturity_e8s_equivalent;
+                cached_neuron_stake_e8s = t.cache.cached_neuron_stake_e8s;
+                created_timestamp_seconds = t.cache.created_timestamp_seconds;
+                followees = t.cache.followees;
+                dissolve_delay_seconds = t.cache.dissolve_delay_seconds;
+                state = t.cache.state;
+                voting_power = t.cache.voting_power;
+                age_seconds = t.cache.age_seconds;
             };
         };
     };
