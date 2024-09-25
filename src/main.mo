@@ -9,32 +9,29 @@ import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 import AccountIdentifier "mo:account-identifier";
 import Hex "mo:encoding/Hex";
-import { NNS } "mo:neuro";
-import NTypes "mo:neuro/types";
 
-actor class () = this {
+shared ({ caller = owner }) actor class () = this {
 
     // Staking Vector Component
     // Stake neurons in vector nodes
 
+    let NTN_LEDGER = Principal.fromText("f54if-eqaaa-aaaaq-aacea-cai");
     let ICP_LEDGER = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+    let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
     let THIS_CANISTER = Principal.fromText("7cotl-6aaaa-aaaam-ade2q-cai");
-
-    let NODE_FEE = 10_000;
+    let NODE_FEE = 1_0000_0000;
 
     let supportedLedgers : [Principal] = [
-        ICP_LEDGER
+        ICP_LEDGER,
+        NTN_LEDGER,
     ];
-
-    /////////////////////
-    /// Stable Memory ///
-    /////////////////////
 
     // devefi ledger mem
     stable let dvf_mem = DeVeFi.Mem();
 
     let dvf = DeVeFi.DeVeFi<system>({ mem = dvf_mem });
     dvf.add_ledger<system>(supportedLedgers[0], #icp);
+    dvf.add_ledger<system>(supportedLedgers[1], #icrc);
 
     // vector node mem
     stable let node_mem = Node.Mem<T.Mem>();
@@ -44,13 +41,15 @@ actor class () = this {
         nodeCreateFee = func(_node) {
             {
                 amount = NODE_FEE;
-                ledger = ICP_LEDGER;
+                ledger = NTN_LEDGER;
             };
         };
         supportedLedgers = Array.map<Principal, ICRC55.SupportedLedger>(supportedLedgers, func(x) = #ic(x));
         settings = {
             Node.DEFAULT_SETTINGS with
             ALLOW_TEMP_NODE_CREATION = true;
+            MAX_SOURCES = 1 : Nat8;
+            MAX_DESTINATIONS = 1 : Nat8;
             PYLON_NAME = "NNS Vector";
             PYLON_GOVERNED_BY = "Neutrinite DAO";
         };
@@ -67,11 +66,8 @@ actor class () = this {
         node_fee = NODE_FEE;
         canister_id = THIS_CANISTER;
         icp_ledger = ICP_LEDGER;
+        icp_governance = ICP_GOVERNANCE;
     });
-
-    /////////////////////////
-    /// Main DeVeFi logic ///
-    /////////////////////////
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
@@ -81,6 +77,11 @@ actor class () = this {
     ignore Timer.recurringTimer<system>(
         #seconds(3),
         func() : async () { await* vector.async_cycle(nodes) },
+    );
+
+    ignore Timer.recurringTimer<system>(
+        #seconds(3),
+        func() : async () { await* vector.update_cache(nodes) },
     );
 
     public query func icrc55_get_nodefactory_meta() : async ICRC55.NodeFactoryMetaResp {
@@ -125,33 +126,6 @@ actor class () = this {
     };
 
     // ---------- Debug functions -----------
-
-    public func get_neuron(id : Nat64) : async NTypes.NnsInformationResult {
-        let neuron = NNS.Neuron({
-            nns_canister_id = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
-            neuron_id = id;
-        });
-
-        return await* neuron.getInformation();
-    };
-
-    public shared ({ caller }) func clear_mem() : () {
-        assert (Principal.isController(caller));
-
-        label vloop for ((vid, vec) in nodes.entries()) {
-            switch (vec.custom) {
-                case (#nns_neuron(nodeMem)) {
-                    nodeMem.internals.claim_neuron := #Init;
-                    nodeMem.internals.update_delay := #Init;
-                    nodeMem.internals.start_dissolve := #Init;
-                    nodeMem.internals.disburse_neuron := #Init;
-                    nodeMem.internals.update_followees := #Init;
-                    nodeMem.internals.spawn_maturity := #Init;
-                    nodeMem.internals.claim_maturity := #Init;
-                };
-            };
-        };
-    };
 
     public query func get_ledger_errors() : async [[Text]] {
         dvf.getErrors();
