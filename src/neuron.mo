@@ -5,7 +5,7 @@ import U "mo:devefi/utils";
 import Debug "mo:base/Debug";
 import Array "mo:base/Array";
 import Nat8 "mo:base/Nat8";
-import NT "mo:neuro/types";
+import GovT "mo:neuro/interfaces/nns_interface";
 
 module {
 
@@ -21,25 +21,27 @@ module {
         };
     };
 
+    public type Updating = { #Idle; #Calling };
+
     public type Mem = {
         init : {
             ledger : Principal;
+            delay_seconds : ?Nat64;
         };
         variables : {
-            var update_followee : ?NT.NnsNeuronId;
+            var update_followee : ?Nat64;
             var update_dissolving : ?Bool;
-            var update_delay_seconds : ?Nat32; // can update to higher amount, just do this amount - cache amount = new amount
         };
         internals : {
-            var updating : { #Idle; #Calling : Nat64 }; // use try finally on every func and call the configs
+            var updating : Updating;
         };
         cache : {
-            var neuron_id : ?NT.NnsNeuronId;
-            var spawning_neurons : [NT.NnsNeuronId];
+            var neuron_id : ?Nat64;
+            var spawning_neurons : [Nat64];
             var maturity_e8s_equivalent : ?Nat64;
             var cached_neuron_stake_e8s : ?Nat64;
             var created_timestamp_seconds : ?Nat64;
-            var followees : [(Int32, { followees : [{ id : NT.NnsNeuronId }] })];
+            var followees : [(Int32, GovT.Followees)];
             var dissolve_delay_seconds : ?Nat64;
             var state : ?Int32;
             var voting_power : ?Nat64;
@@ -50,11 +52,11 @@ module {
     public type CreateRequest = {
         init : {
             ledger : Principal;
+            delay_seconds : ?Nat64;
         };
         variables : {
-            update_followee : ?NT.NnsNeuronId;
+            update_followee : ?Nat64;
             update_dissolving : ?Bool;
-            update_delay_seconds : ?Nat32;
         };
     };
 
@@ -64,7 +66,6 @@ module {
             variables = {
                 var update_followee = t.variables.update_followee;
                 var update_dissolving = t.variables.update_dissolving;
-                var update_delay_seconds = t.variables.update_delay_seconds;
             };
             internals = {
                 var updating = #Idle;
@@ -89,11 +90,11 @@ module {
         {
             init = {
                 ledger = ledger;
+                delay_seconds = null;
             };
             variables = {
                 update_followee = null;
                 update_dissolving = null;
-                update_delay_seconds = null;
             };
         };
     };
@@ -112,20 +113,19 @@ module {
             ledger : Principal;
         };
         variables : {
-            update_followee : ?NT.NnsNeuronId;
+            update_followee : ?Nat64;
             update_dissolving : ?Bool;
-            update_delay_seconds : ?Nat32;
         };
         internals : {
-            updating : { #Idle; #Calling : Nat64 };
+            updating : Updating;
         };
         cache : {
-            neuron_id : ?NT.NnsNeuronId;
-            spawning_neurons : [NT.NnsNeuronId];
+            neuron_id : ?Nat64;
+            spawning_neurons : [Nat64];
             maturity_e8s_equivalent : ?Nat64;
             cached_neuron_stake_e8s : ?Nat64;
             created_timestamp_seconds : ?Nat64;
-            followees : [(Int32, { followees : [{ id : NT.NnsNeuronId }] })];
+            followees : [(Int32, GovT.Followees)];
             dissolve_delay_seconds : ?Nat64;
             state : ?Int32;
             voting_power : ?Nat64;
@@ -139,7 +139,6 @@ module {
             variables = {
                 update_followee = t.variables.update_followee;
                 update_dissolving = t.variables.update_dissolving;
-                update_delay_seconds = t.variables.update_delay_seconds;
             };
             internals = {
                 updating = t.internals.updating;

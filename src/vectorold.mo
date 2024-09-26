@@ -28,7 +28,7 @@ module {
         let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
 
         let TOPICS : [Int32] = [
-            0, // Catch all
+            0, // Catch all, except Governance & SNS & Community Fund
             4, // Governance
             14, // SNS & Community Fund
         ];
