@@ -81,7 +81,7 @@ shared ({ caller = owner }) actor class () = this {
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
-        func() : async () { await* vector.update_cache(nodes) },
+        func() : async () { await* vector.refresh_cycle(nodes) },
     );
 
     public query func icrc55_get_nodefactory_meta() : async ICRC55.NodeFactoryMetaResp {
