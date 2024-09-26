@@ -2,11 +2,12 @@ import Principal "mo:base/Principal";
 import Nat64 "mo:base/Nat64";
 import Time "mo:base/Time";
 import Int "mo:base/Int";
-import Array "mo:base/Array";
 import Option "mo:base/Option";
+import Blob "mo:base/Blob";
 import Node "mo:devefi/node";
 import Tools "mo:neuro/tools";
 import GovT "mo:neuro/interfaces/nns_interface";
+import AccountIdentifier "mo:account-identifier";
 import { NNS } "mo:neuro";
 import Map "mo:map/Map";
 import T "./types";
@@ -29,10 +30,17 @@ module {
 
         // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/proto/ic_nns_governance/pb/v1/governance.proto#L41
         let GOVERNANCE_TOPICS : [Int32] = [
-            0, // Catch all
+            0, // Catch all, except Governance & SNS & Community Fund
             4, // Governance
             14, // SNS & Community Fund
         ];
+
+        let NEURON_STATES = {
+            locked : Int32 = 1;
+            dissolving : Int32 = 2;
+            unlocked : Int32 = 3;
+            spawning : Int32 = 4;
+        };
 
         public func sync_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : () {
             label vloop for ((vid, vec) in nodes.entries()) {
@@ -62,6 +70,8 @@ module {
                             await* claim_neuron(nodeMem, Nat64.fromNat32(vid));
                             await* update_delay(nodeMem);
                             await* update_followees(nodeMem);
+                            await* update_dissolving(nodeMem);
+                            await* disburse_neuron(nodeMem, vec.refund[0]);
                         } catch (error) {
                             // log error
                         } finally {
@@ -167,5 +177,58 @@ module {
             };
         };
 
+        private func update_dissolving(nodeMem : N.Mem) : async* () {
+            let ?neuron_id = nodeMem.cache.neuron_id else return;
+            let ?updateDissolving = nodeMem.variables.update_dissolving else return;
+            let ?dissolvingState = nodeMem.cache.state else return;
+
+            if (updateDissolving and dissolvingState == NEURON_STATES.locked) {
+                let neuron = NNS.Neuron({
+                    nns_canister_id = icp_governance;
+                    neuron_id = neuron_id;
+                });
+
+                let #ok(_) = await* neuron.startDissolving() else return;
+            };
+
+            if (not updateDissolving and dissolvingState == NEURON_STATES.dissolving) {
+                let neuron = NNS.Neuron({
+                    nns_canister_id = icp_governance;
+                    neuron_id = neuron_id;
+                });
+
+                let #ok(_) = await* neuron.stopDissolving() else return;
+            };
+        };
+
+        private func disburse_neuron(nodeMem : N.Mem, refund : Node.Endpoint) : async* () {
+            let ?neuron_id = nodeMem.cache.neuron_id else return;
+            let ?updateDissolving = nodeMem.variables.update_dissolving else return;
+            let ?dissolvingState = nodeMem.cache.state else return;
+            let ?cachedStake = nodeMem.cache.cached_neuron_stake_e8s else return;
+
+            if (updateDissolving and dissolvingState == NEURON_STATES.unlocked and cachedStake >= 0) {
+                let neuron = NNS.Neuron({
+                    nns_canister_id = icp_governance;
+                    neuron_id = neuron_id;
+                });
+
+                let #ic({ account }) = refund else return;
+
+                let #ok(_) = await* neuron.disburse({
+                    to_account = ?{
+                        hash = AccountIdentifier.accountIdentifier(
+                            account.owner,
+                            Option.get(account.subaccount, AccountIdentifier.defaultSubaccount()),
+                        ) |> Blob.toArray(_);
+                    };
+                    amount = null;
+                }) else return;
+            };
+        };
+
+        // TODO spawn maturity if enough maturity
+
+        // TODO claim maturity if ready
     };
 };
