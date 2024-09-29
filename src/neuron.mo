@@ -21,7 +21,7 @@ module {
         };
     };
 
-    public type Updating = { #Idle; #Calling };
+    public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
 
     public type Mem = {
         init : {
@@ -68,7 +68,7 @@ module {
                 var update_dissolving = t.variables.update_dissolving;
             };
             internals = {
-                var updating = #Idle;
+                var updating = #Init;
             };
             cache = {
                 var neuron_id = null;

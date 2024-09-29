@@ -12,9 +12,6 @@ import Hex "mo:encoding/Hex";
 
 shared ({ caller = owner }) actor class () = this {
 
-    // Staking Vector Component
-    // Stake neurons in vector nodes
-
     let NTN_LEDGER = Principal.fromText("f54if-eqaaa-aaaaq-aacea-cai");
     let ICP_LEDGER = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
     let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
@@ -26,14 +23,12 @@ shared ({ caller = owner }) actor class () = this {
         NTN_LEDGER,
     ];
 
-    // devefi ledger mem
     stable let dvf_mem = DeVeFi.Mem();
 
     let dvf = DeVeFi.DeVeFi<system>({ mem = dvf_mem });
     dvf.add_ledger<system>(supportedLedgers[0], #icp);
     dvf.add_ledger<system>(supportedLedgers[1], #icrc);
 
-    // vector node mem
     stable let node_mem = Node.Mem<T.Mem>();
     let nodes = Node.Node<system, T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>({
         mem = node_mem;
@@ -92,6 +87,10 @@ shared ({ caller = owner }) actor class () = this {
         nodes.icrc55_create_node_get_fee(caller, req, creq);
     };
 
+    public shared ({ caller }) func icrc55_command(cmds : [ICRC55.Command<T.CreateRequest, T.ModifyRequest>]) : async [ICRC55.CommandResponse<T.Shared>] {
+        nodes.icrc55_command(caller, cmds);
+    };
+
     public shared ({ caller }) func icrc55_create_node(req : ICRC55.NodeRequest, creq : T.CreateRequest) : async Node.CreateNodeResp<T.Shared> {
         nodes.icrc55_create_node(caller, req, creq);
     };
@@ -108,7 +107,7 @@ shared ({ caller = owner }) actor class () = this {
         nodes.icrc55_delete_node(caller, vid);
     };
 
-    public shared ({ caller }) func icrc55_modify_node(vid : ICRC55.LocalNodeId, req : ?ICRC55.NodeModifyRequest, creq : ?T.ModifyRequest) : async Node.ModifyNodeResp<T.Shared> {
+    public shared ({ caller }) func icrc55_modify_node(vid : ICRC55.LocalNodeId, req : ?ICRC55.CommonModRequest, creq : ?T.ModifyRequest) : async Node.ModifyNodeResp<T.Shared> {
         nodes.icrc55_modify_node(caller, vid, req, creq);
     };
 

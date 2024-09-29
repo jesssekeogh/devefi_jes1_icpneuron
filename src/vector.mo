@@ -28,6 +28,9 @@ module {
             icp_ledger_canister_id = icp_ledger;
         });
 
+        // Caches are checked again after this time
+        let TIMEOUT_NANOS : Nat64 = (3 * 60 * 1_000_000_000);
+
         // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/proto/ic_nns_governance/pb/v1/governance.proto#L41
         let GOVERNANCE_TOPICS : [Int32] = [
             0, // Catch all, except Governance & SNS & Community Fund
@@ -55,7 +58,7 @@ module {
                     case (#nns_neuron(nodeMem)) {
                         let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(canister_id, Nat64.fromNat32(vid));
                         source.send(#external_account({ owner = icp_governance; subaccount = ?neuronSubaccount }), bal - node_fee);
-                        // TODO refresh neuron after send
+                        // TODO process neuron refreshes 60 seconds after send
                     };
                 };
             };
@@ -75,7 +78,7 @@ module {
                         } catch (error) {
                             // log error
                         } finally {
-                            nodeMem.internals.updating := #Idle;
+                            nodeMem.internals.updating := #Done(get_now_nanos());
                         };
                     };
                 };
@@ -84,7 +87,7 @@ module {
 
         public func refresh_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
             let { full_neurons; neuron_infos } = await* nns.listNeurons({
-                neuronIds = [];
+                neuronIds = []; // TODO batch with 100 neurons at a time
                 readable = true;
             });
 
@@ -124,9 +127,20 @@ module {
         };
 
         private func ready(nodeMem : N.Mem) : Bool {
-            let #Idle = nodeMem.internals.updating else return false;
-            nodeMem.internals.updating := #Calling;
-            return true;
+            switch (nodeMem.internals.updating) {
+                case (#Init) {
+                    nodeMem.internals.updating := #Calling(get_now_nanos());
+                    return true;
+                };
+                case (#Calling(ts) or #Done(ts)) {
+                    if (get_now_nanos() >= ts + TIMEOUT_NANOS) {
+                        nodeMem.internals.updating := #Calling(get_now_nanos());
+                        return true;
+                    } else {
+                        return false;
+                    };
+                };
+            };
         };
 
         private func claim_neuron(nodeMem : N.Mem, nonce : Nat64) : async* () {
