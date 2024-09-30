@@ -41,8 +41,8 @@ shared ({ caller = owner }) actor class () = this {
         };
         supportedLedgers = Array.map<Principal, ICRC55.SupportedLedger>(supportedLedgers, func(x) = #ic(x));
         settings = {
-            Node.DEFAULT_SETTINGS with
             ALLOW_TEMP_NODE_CREATION = true;
+            TEMP_NODE_EXPIRATION_SEC = (10 * 24 * 60 * 60); // 10 days
             MAX_SOURCES = 1 : Nat8;
             MAX_DESTINATIONS = 1 : Nat8;
             PYLON_NAME = "NNS Vector";

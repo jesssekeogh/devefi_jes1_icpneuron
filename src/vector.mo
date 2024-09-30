@@ -31,6 +31,15 @@ module {
         // Caches are checked again after this time
         let TIMEOUT_NANOS : Nat64 = (3 * 60 * 1_000_000_000);
 
+        // 1.06 ICP in e8s
+        let MINIMUM_SPAWN : Nat64 = 106_000_000;
+
+        // 7 days
+        let SPAWNING_DURATION_NANOS : Nat64 = (7 * 24 * 60 * 60 * 1_000_000_000);
+
+        // 1 hour
+        let SPAWNING_BUFFER : Nat64 = (1 * 60 * 60 * 1_000_000_000);
+
         // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/proto/ic_nns_governance/pb/v1/governance.proto#L41
         let GOVERNANCE_TOPICS : [Int32] = [
             0, // Catch all, except Governance & SNS & Community Fund
@@ -74,7 +83,8 @@ module {
                             await* update_delay(nodeMem);
                             await* update_followees(nodeMem);
                             await* update_dissolving(nodeMem);
-                            await* disburse_neuron(nodeMem, vec.refund[0]);
+                            await* disburse_neuron(nodeMem, vec.refund[0], vec.destinations[0]);
+                            await* spawn_maturity(nodeMem, vec, nodes);
                         } catch (error) {
                             // log error
                         } finally {
@@ -145,6 +155,11 @@ module {
 
         private func claim_neuron(nodeMem : N.Mem, nonce : Nat64) : async* () {
             if (Option.isSome(nodeMem.cache.neuron_id)) return;
+            if (Option.isSome(nodeMem.init.is_spawned_timestamp)) {
+                let ?ts = nodeMem.init.is_spawned_timestamp else return;
+                if (get_now_nanos() < ts + SPAWNING_DURATION_NANOS + SPAWNING_BUFFER) return;
+            };
+
             let #ok(neuronId) = await* nns.claimNeuron({ nonce = nonce }) else return;
             nodeMem.cache.neuron_id := ?neuronId;
         };
@@ -156,7 +171,7 @@ module {
             if (Option.isNull(nodeMem.cache.dissolve_delay_seconds)) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
-                    neuron_id = neuron_id;
+                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
                 let #ok(_) = await* neuron.setDissolveTimestamp({
@@ -180,7 +195,7 @@ module {
                 if (needsUpdate) {
                     let neuron = NNS.Neuron({
                         nns_canister_id = icp_governance;
-                        neuron_id = neuron_id;
+                        neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                     });
 
                     let #ok(_) = await* neuron.follow({
@@ -199,7 +214,7 @@ module {
             if (updateDissolving and dissolvingState == NEURON_STATES.locked) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
-                    neuron_id = neuron_id;
+                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
                 let #ok(_) = await* neuron.startDissolving() else return;
@@ -208,14 +223,14 @@ module {
             if (not updateDissolving and dissolvingState == NEURON_STATES.dissolving) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
-                    neuron_id = neuron_id;
+                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
                 let #ok(_) = await* neuron.stopDissolving() else return;
             };
         };
 
-        private func disburse_neuron(nodeMem : N.Mem, refund : Node.Endpoint) : async* () {
+        private func disburse_neuron(nodeMem : N.Mem, refund : Node.Endpoint, destination : Node.DestinationEndpoint) : async* () {
             let ?neuron_id = nodeMem.cache.neuron_id else return;
             let ?updateDissolving = nodeMem.variables.update_dissolving else return;
             let ?dissolvingState = nodeMem.cache.state else return;
@@ -224,16 +239,22 @@ module {
             if (updateDissolving and dissolvingState == NEURON_STATES.unlocked and cachedStake >= 0) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
-                    neuron_id = neuron_id;
+                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
-                let #ic({ account }) = refund else return;
+                let disbursementAccount : Node.Account = if (Option.isSome(nodeMem.init.is_spawned_timestamp)) {
+                    let #ic({ account = ?account }) = destination else return;
+                    account;
+                } else {
+                    let #ic({ account }) = refund else return;
+                    account;
+                };
 
                 let #ok(_) = await* neuron.disburse({
                     to_account = ?{
                         hash = AccountIdentifier.accountIdentifier(
-                            account.owner,
-                            Option.get(account.subaccount, AccountIdentifier.defaultSubaccount()),
+                            disbursementAccount.owner,
+                            Option.get(disbursementAccount.subaccount, AccountIdentifier.defaultSubaccount()),
                         ) |> Blob.toArray(_);
                     };
                     amount = null;
@@ -241,8 +262,43 @@ module {
             };
         };
 
-        // TODO spawn maturity if enough maturity
+        private func spawn_maturity(nodeMem : N.Mem, vec : Node.NodeMem<T.Mem>, nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
+            let ?neuron_id = nodeMem.cache.neuron_id else return;
+            let ?cachedMaturity = nodeMem.cache.maturity_e8s_equivalent else return;
 
-        // TODO claim maturity if ready
+            if (cachedMaturity >= MINIMUM_SPAWN) {
+                let #ok({ id }) = nodes.icrc55_create_node(
+                    vec.controllers[0],
+                    {
+                        destinations = vec.destinations;
+                        refund = vec.refund;
+                        controllers = vec.controllers;
+                    },
+                    #nns_neuron({
+                        init = {
+                            ledger = nodeMem.init.ledger;
+                            delay_seconds = null;
+                            is_spawned_timestamp = ?get_now_nanos();
+                        };
+                        variables = {
+                            update_followee = null;
+                            update_dissolving = ?true;
+                        };
+                    }),
+                ) else return;
+
+                let neuron = NNS.Neuron({
+                    nns_canister_id = icp_governance;
+                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
+                });
+
+                let #ok(_) = await* neuron.spawn({
+                    nonce = ?Nat64.fromNat32(id);
+                    new_controller = null;
+                    percentage_to_spawn = null;
+                }) else return;
+            };
+        };
+
     };
 };
