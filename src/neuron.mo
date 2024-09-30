@@ -27,6 +27,7 @@ module {
         init : {
             ledger : Principal;
             delay_seconds : ?Nat64;
+            is_spawned_timestamp : ?Nat64;
         };
         variables : {
             var update_followee : ?Nat64;
@@ -37,7 +38,6 @@ module {
         };
         cache : {
             var neuron_id : ?Nat64;
-            var spawning_neurons : [Nat64];
             var maturity_e8s_equivalent : ?Nat64;
             var cached_neuron_stake_e8s : ?Nat64;
             var created_timestamp_seconds : ?Nat64;
@@ -53,6 +53,7 @@ module {
         init : {
             ledger : Principal;
             delay_seconds : ?Nat64;
+            is_spawned_timestamp : ?Nat64;
         };
         variables : {
             update_followee : ?Nat64;
@@ -72,7 +73,6 @@ module {
             };
             cache = {
                 var neuron_id = null;
-                var spawning_neurons = [];
                 var maturity_e8s_equivalent = null;
                 var cached_neuron_stake_e8s = null;
                 var created_timestamp_seconds = null;
@@ -91,6 +91,7 @@ module {
             init = {
                 ledger = ledger;
                 delay_seconds = null;
+                is_spawned_timestamp = null;
             };
             variables = {
                 update_followee = null;
@@ -111,6 +112,8 @@ module {
     public type Shared = {
         init : {
             ledger : Principal;
+            delay_seconds : ?Nat64;
+            is_spawned_timestamp : ?Nat64;
         };
         variables : {
             update_followee : ?Nat64;
@@ -121,7 +124,6 @@ module {
         };
         cache : {
             neuron_id : ?Nat64;
-            spawning_neurons : [Nat64];
             maturity_e8s_equivalent : ?Nat64;
             cached_neuron_stake_e8s : ?Nat64;
             created_timestamp_seconds : ?Nat64;
@@ -145,7 +147,6 @@ module {
             };
             cache = {
                 neuron_id = t.cache.neuron_id;
-                spawning_neurons = t.cache.spawning_neurons;
                 maturity_e8s_equivalent = t.cache.maturity_e8s_equivalent;
                 cached_neuron_stake_e8s = t.cache.cached_neuron_stake_e8s;
                 created_timestamp_seconds = t.cache.created_timestamp_seconds;
