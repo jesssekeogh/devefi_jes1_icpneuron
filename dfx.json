@@ -1,6 +1,6 @@
 {
   "canisters": {
-    "nns_vector": {
+    "nnsvector": {
       "main": "src/main.mo",
       "type": "motoko"
     }
