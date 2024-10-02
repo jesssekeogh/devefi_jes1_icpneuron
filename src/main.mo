@@ -42,7 +42,7 @@ shared ({ caller = owner }) actor class () = this {
         supportedLedgers = Array.map<Principal, ICRC55.SupportedLedger>(supportedLedgers, func(x) = #ic(x));
         settings = {
             ALLOW_TEMP_NODE_CREATION = true;
-            TEMP_NODE_EXPIRATION_SEC = (10 * 24 * 60 * 60); // 10 days
+            TEMP_NODE_EXPIRATION_SEC = (60 * 60); // 1 hour
             MAX_SOURCES = 1 : Nat8;
             MAX_DESTINATIONS = 1 : Nat8;
             PYLON_NAME = "NNS Vector";
@@ -125,6 +125,10 @@ shared ({ caller = owner }) actor class () = this {
     };
 
     // ---------- Debug functions -----------
+
+    public func add_supported_ledger(id : Principal, ltype : { #icp; #icrc }) : () {
+        dvf.add_ledger<system>(id, ltype);
+    };
 
     public query func get_ledger_errors() : async [[Text]] {
         dvf.getErrors();
