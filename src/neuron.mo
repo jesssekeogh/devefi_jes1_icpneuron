@@ -24,18 +24,18 @@ module {
 
     public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
 
-    public type Nonce = Nat64;
-
     public type SpawningNeuronCache = {
-        var maturity_e8s_equivalent : ?Nat64;
-        var cached_neuron_stake_e8s : ?Nat64;
-        var created_timestamp_seconds : ?Nat64;
+        var nonce : Nat64;
+        var maturity_e8s_equivalent : Nat64;
+        var cached_neuron_stake_e8s : Nat64;
+        var created_timestamp_seconds : Nat64;
     };
 
     public type SharedSpawningNeuronCache = {
-        maturity_e8s_equivalent : ?Nat64;
-        cached_neuron_stake_e8s : ?Nat64;
-        created_timestamp_seconds : ?Nat64;
+        nonce : Nat64;
+        maturity_e8s_equivalent : Nat64;
+        cached_neuron_stake_e8s : Nat64;
+        created_timestamp_seconds : Nat64;
     };
 
     public type NeuronCache = {
@@ -76,7 +76,7 @@ module {
         internals : {
             var updating : Updating;
             var local_idx : Nat32;
-            var spawning_neurons : [(Nonce, SpawningNeuronCache)];
+            var spawning_neurons : [SpawningNeuronCache];
         };
         cache : NeuronCache;
     };
@@ -154,7 +154,7 @@ module {
         internals : {
             updating : Updating;
             local_idx : Nat32;
-            spawning_neurons : [(Nonce, SharedSpawningNeuronCache)];
+            spawning_neurons : [SharedSpawningNeuronCache];
         };
         cache : SharedNeuronCache;
     };
@@ -169,17 +169,16 @@ module {
             internals = {
                 updating = t.internals.updating;
                 local_idx = t.internals.local_idx;
-                spawning_neurons = Array.map<(Nonce, SpawningNeuronCache), (Nonce, SharedSpawningNeuronCache)>(
+                spawning_neurons = Array.map(
                     t.internals.spawning_neurons,
-                    func((nonce, neuron) : (Nonce, SpawningNeuronCache)) : (Nonce, SharedSpawningNeuronCache) {
-                        (
-                            nonce,
-                            {
-                                maturity_e8s_equivalent = neuron.maturity_e8s_equivalent;
-                                cached_neuron_stake_e8s = neuron.cached_neuron_stake_e8s;
-                                created_timestamp_seconds = neuron.created_timestamp_seconds;
-                            },
-                        );
+                    func(neuron : SpawningNeuronCache) : SharedSpawningNeuronCache {
+
+                        {
+                            nonce = neuron.nonce;
+                            maturity_e8s_equivalent = neuron.maturity_e8s_equivalent;
+                            cached_neuron_stake_e8s = neuron.cached_neuron_stake_e8s;
+                            created_timestamp_seconds = neuron.created_timestamp_seconds;
+                        };
                     },
                 );
             };
