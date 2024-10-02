@@ -35,9 +35,9 @@ module {
         };
     };
 
-    public func sourceMap(id : Node.NodeId, custom : Mem, thiscan : Principal) : Result.Result<[ICRC55.Endpoint], Text> {
+    public func sourceMap(id : Node.NodeId, custom : Mem, thiscan : Principal, sourcesProvided : [ICRC55.Endpoint]) : Result.Result<[ICRC55.Endpoint], Text> {
         switch (custom) {
-            case (#nns_neuron(t)) Neuron.request2Sources(t, id, thiscan);
+            case (#nns_neuron(t)) Neuron.request2Sources(t, id, thiscan, sourcesProvided);
         };
     };
 
