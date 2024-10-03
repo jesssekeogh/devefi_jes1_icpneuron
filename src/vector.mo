@@ -5,6 +5,7 @@ import Int "mo:base/Int";
 import Option "mo:base/Option";
 import Blob "mo:base/Blob";
 import Node "mo:devefi/node";
+import DeVeFi "mo:devefi";
 import Tools "mo:neuro/tools";
 import GovT "mo:neuro/interfaces/nns_interface";
 import AccountIdentifier "mo:account-identifier";
@@ -17,7 +18,6 @@ import N "./neuron";
 module {
 
     public class NeuronVector({
-        node_fee : Nat;
         canister_id : Principal;
         icp_ledger : Principal;
         icp_governance : Principal;
@@ -53,37 +53,39 @@ module {
             label vloop for ((vid, vec) in nodes.entries()) {
                 if (not vec.active) continue vloop;
                 if (not nodes.hasDestination(vec, 0)) continue vloop;
-                let ?source = nodes.getSource(vid, vec, 0) else continue vloop;
 
-                let bal = source.balance();
-                let ledger_fee = source.fee();
-                if (bal <= node_fee + ledger_fee) continue vloop;
+                let ?source = nodes.getSource(vid, vec, 0) else continue vloop;
+                if (source.balance() <= source.fee()) continue vloop;
 
                 switch (vec.custom) {
                     case (#nns_neuron(nodeMem)) {
                         let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(canister_id, Nat64.fromNat32(vid));
-                        ignore source.send(#external_account({ owner = icp_governance; subaccount = ?neuronSubaccount }), bal - node_fee);
-                        // TODO process neuron refreshes after send
+                        let #ok(txId) = source.send(#external_account({ owner = icp_governance; subaccount = ?neuronSubaccount }), source.balance()) else continue vloop;
+                        nodeMem.internals.refresh_idx := ?txId;
                     };
                 };
             };
         };
 
-        public func async_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
+        public func async_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>, icp_cls : ?DeVeFi.LedgerCls) : async* () {
             label vloop for ((vid, vec) in nodes.entries()) {
+                if (not vec.active) continue vloop;
+                if (not nodes.hasDestination(vec, 0)) continue vloop;
+
                 switch (vec.custom) {
                     case (#nns_neuron(nodeMem)) {
                         if (not ready(nodeMem)) continue vloop;
                         try {
                             await* claim_neuron(nodeMem, vid);
+                            await* refresh_neuron(nodeMem, icp_cls);
                             await* update_delay(nodeMem);
                             await* update_followees(nodeMem);
                             await* update_dissolving(nodeMem);
                             await* disburse_neuron(nodeMem, vec.refund[0]);
                             await* spawn_maturity(nodeMem, vid);
                             await* claim_maturity(nodeMem, vec.destinations[0]);
-                        } catch (error) {
-                            // log error
+                        } catch (_error) {
+                            // TODO log error
                         } finally {
                             nodeMem.internals.updating := #Done(get_now_nanos());
                         };
@@ -92,7 +94,7 @@ module {
             };
         };
 
-        public func refresh_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
+        public func cache_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
             let { full_neurons; neuron_infos } = await* nns.listNeurons({
                 neuronIds = [];
                 readable = true;
@@ -166,13 +168,14 @@ module {
             let spawningNeurons = Vector.Vector<N.SpawningNeuronCache>();
 
             var idx : Nat32 = 1;
-            while (idx <= nodeMem.internals.local_idx) {
-                let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(canister_id, get_neuron_nonce(vid, idx));
-                let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else return;
+            label idxLoop while (idx <= nodeMem.internals.local_idx) {
+                let spawningNonce : Nat64 = get_neuron_nonce(vid, idx);
+                let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(canister_id, spawningNonce);
+                let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else continue idxLoop;
 
                 if (full.cached_neuron_stake_e8s > 0 or full.maturity_e8s_equivalent > 0) {
                     spawningNeurons.add({
-                        var nonce = get_neuron_nonce(vid, idx);
+                        var nonce = spawningNonce;
                         var maturity_e8s_equivalent = full.maturity_e8s_equivalent;
                         var cached_neuron_stake_e8s = full.cached_neuron_stake_e8s;
                         var created_timestamp_seconds = full.created_timestamp_seconds;
@@ -191,6 +194,19 @@ module {
             let #ok(neuronId) = await* nns.claimNeuron({ nonce = firstNonce }) else return;
             nodeMem.cache.neuron_id := ?neuronId;
             nodeMem.cache.nonce := ?firstNonce;
+        };
+
+        private func refresh_neuron(nodeMem : N.Mem, icp_cls : ?DeVeFi.LedgerCls) : async* () {
+            let ?{ cls = #icp(icp_ledger_cls) } = icp_cls else return;
+            let ?firstNonce = nodeMem.cache.nonce else return;
+            let ?refresh_idx = nodeMem.internals.refresh_idx else return;
+            if (icp_ledger_cls.isSent(refresh_idx)) {
+                nodeMem.internals.refresh_idx := null;
+
+                let #ok(_) = await* nns.claimNeuron({
+                    nonce = firstNonce;
+                }) else return;
+            };
         };
 
         private func update_delay(nodeMem : N.Mem) : async* () {

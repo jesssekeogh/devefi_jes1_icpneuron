@@ -1,5 +1,4 @@
 import Principal "mo:base/Principal";
-import Array "mo:base/Array";
 import Timer "mo:base/Timer";
 import Blob "mo:base/Blob";
 import T "./types";
@@ -16,7 +15,6 @@ shared ({ caller = owner }) actor class () = this {
     let ICP_LEDGER = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
     let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
     let THIS_CANISTER = Principal.fromText("7cotl-6aaaa-aaaam-ade2q-cai");
-    let NODE_FEE = 1_0000_0000;
 
     let supportedLedgers : [Principal] = [
         ICP_LEDGER,
@@ -34,12 +32,12 @@ shared ({ caller = owner }) actor class () = this {
         mem = node_mem;
         dvf;
         nodeCreateFee = func(_node) {
+            let dvf_ledgers = dvf.get_ledger_ids();
             {
-                amount = NODE_FEE;
-                ledger = NTN_LEDGER;
+                amount = 1_0000_0000;
+                ledger = dvf_ledgers[1];
             };
         };
-        supportedLedgers = Array.map<Principal, ICRC55.SupportedLedger>(supportedLedgers, func(x) = #ic(x));
         settings = {
             ALLOW_TEMP_NODE_CREATION = true;
             TEMP_NODE_EXPIRATION_SEC = (60 * 60); // 1 hour
@@ -58,7 +56,6 @@ shared ({ caller = owner }) actor class () = this {
     });
 
     let vector = V.NeuronVector({
-        node_fee = NODE_FEE;
         canister_id = THIS_CANISTER;
         icp_ledger = ICP_LEDGER;
         icp_governance = ICP_GOVERNANCE;
@@ -66,17 +63,24 @@ shared ({ caller = owner }) actor class () = this {
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
-        func() : async () { vector.sync_cycle(nodes) },
+        func() : async () {
+            vector.sync_cycle(nodes);
+        },
     );
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
-        func() : async () { await* vector.async_cycle(nodes) },
+        func() : async () {
+            await* vector.async_cycle(nodes, dvf.get_ledger(ICP_LEDGER));
+        },
     );
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
-        func() : async () { await* vector.refresh_cycle(nodes) },
+        func() : async () {
+            await* vector.cache_cycle(nodes)
+
+        },
     );
 
     public query func icrc55_get_nodefactory_meta() : async ICRC55.NodeFactoryMetaResp {
@@ -141,7 +145,7 @@ shared ({ caller = owner }) actor class () = this {
     // Dashboard explorer doesn't show icrc accounts in text format, this does
     // Hard to send tokens to Candid ICRC Accounts
     public query func get_node_addr(vid : Node.NodeId) : async ?Text {
-        let ?(_, vec) = nodes.getNode(#id(vid)) else return null;
+        let ?(_, _vec) = nodes.getNode(#id(vid)) else return null;
 
         let subaccount = Node.port2subaccount({
             vid;
