@@ -7,3 +7,6 @@ account-identifier = "1.0.2"
 encoding = "https://github.com/aviate-labs/encoding.mo#master@2711d18727e954b11afc0d37945608512b5fbce2"
 map = "9.0.1"
 vector = "0.4.1"
+
+[dev-dependencies]
+test = "2.0.0"

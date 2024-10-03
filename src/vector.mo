@@ -1,7 +1,5 @@
 import Principal "mo:base/Principal";
 import Nat64 "mo:base/Nat64";
-import Time "mo:base/Time";
-import Int "mo:base/Int";
 import Option "mo:base/Option";
 import Blob "mo:base/Blob";
 import Node "mo:devefi/node";
@@ -14,6 +12,7 @@ import Map "mo:map/Map";
 import Vector "mo:vector/Class";
 import T "./types";
 import N "./neuron";
+import U "./utils";
 
 module {
 
@@ -87,7 +86,7 @@ module {
                         } catch (_error) {
                             // TODO log error
                         } finally {
-                            nodeMem.internals.updating := #Done(get_now_nanos());
+                            nodeMem.internals.updating := #Done(U.get_now_nanos());
                         };
                     };
                 };
@@ -120,23 +119,15 @@ module {
             };
         };
 
-        private func get_neuron_nonce(vid : Nat32, localId : Nat32) : Nat64 {
-            return Nat64.fromNat32(vid) << 32 | Nat64.fromNat32(localId);
-        };
-
-        private func get_now_nanos() : Nat64 {
-            return Time.now() |> Int.abs(_) |> Nat64.fromNat(_);
-        };
-
         private func ready(nodeMem : N.Mem) : Bool {
             switch (nodeMem.internals.updating) {
                 case (#Init) {
-                    nodeMem.internals.updating := #Calling(get_now_nanos());
+                    nodeMem.internals.updating := #Calling(U.get_now_nanos());
                     return true;
                 };
                 case (#Calling(ts) or #Done(ts)) {
-                    if (get_now_nanos() >= ts + TIMEOUT_NANOS) {
-                        nodeMem.internals.updating := #Calling(get_now_nanos());
+                    if (U.get_now_nanos() >= ts + TIMEOUT_NANOS) {
+                        nodeMem.internals.updating := #Calling(U.get_now_nanos());
                         return true;
                     } else {
                         return false;
@@ -169,7 +160,7 @@ module {
 
             var idx : Nat32 = 1;
             label idxLoop while (idx <= nodeMem.internals.local_idx) {
-                let spawningNonce : Nat64 = get_neuron_nonce(vid, idx);
+                let spawningNonce : Nat64 = U.get_neuron_nonce(vid, idx);
                 let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(canister_id, spawningNonce);
                 let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else continue idxLoop;
 
@@ -190,7 +181,7 @@ module {
 
         private func claim_neuron(nodeMem : N.Mem, vid : Nat32) : async* () {
             if (Option.isSome(nodeMem.cache.neuron_id)) return;
-            let firstNonce = get_neuron_nonce(vid, 0);
+            let firstNonce = U.get_neuron_nonce(vid, 0);
             let #ok(neuronId) = await* nns.claimNeuron({ nonce = firstNonce }) else return;
             nodeMem.cache.neuron_id := ?neuronId;
             nodeMem.cache.nonce := ?firstNonce;
@@ -220,7 +211,7 @@ module {
                 });
 
                 let #ok(_) = await* neuron.setDissolveTimestamp({
-                    dissolve_timestamp_seconds = get_now_nanos() + delaySeconds;
+                    dissolve_timestamp_seconds = U.get_now_nanos() + delaySeconds;
                 }) else return;
             };
         };
@@ -307,7 +298,7 @@ module {
 
             if (cachedMaturity > MINIMUM_SPAWN) {
                 nodeMem.internals.local_idx += 1;
-                let newNonce : Nat64 = get_neuron_nonce(vid, nodeMem.internals.local_idx);
+                let newNonce : Nat64 = U.get_neuron_nonce(vid, nodeMem.internals.local_idx);
 
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
