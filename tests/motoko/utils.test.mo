@@ -1,5 +1,5 @@
 import { test; expect } "mo:test";
-import U "../src/utils";
+import U "../../src/utils";
 import Set "mo:map/Set";
 import Nat32 "mo:base/Nat32";
 import Debug "mo:base/Debug";
