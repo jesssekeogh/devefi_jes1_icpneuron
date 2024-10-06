@@ -60,6 +60,12 @@ module {
         };
     };
 
+    public func nodeMeta(custom : Mem, all_ledgers : [ICRC55.SupportedLedger]) : ICRC55.NodeMeta {
+        switch (custom) {
+            case (#nns_neuron(_)) Neuron.meta(all_ledgers);
+        };
+    };
+
     public func meta(all_ledgers : [ICRC55.SupportedLedger]) : [ICRC55.NodeMeta] {
         [
             Neuron.meta(all_ledgers),

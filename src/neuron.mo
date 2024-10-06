@@ -6,6 +6,7 @@ import Debug "mo:base/Debug";
 import Option "mo:base/Option";
 import Array "mo:base/Array";
 import Nat8 "mo:base/Nat8";
+import Principal "mo:base/Principal";
 import GovT "mo:neuro/interfaces/nns_interface";
 
 module {
@@ -15,10 +16,24 @@ module {
             id = "nns_neuron"; // This has to be same as the variant in vec.custom
             name = "NNS Neuron";
             description = "Stake NNS neurons and receive ICP maturity";
-            governed_by = "Neutrinite DAO";
             supported_ledgers = all_ledgers;
-            pricing = "1 NTN";
             version = #alpha;
+            billing = {
+                ledger = U.onlyICLedger(all_ledgers[1]);
+                min_create_balance = 5000000;
+                cost_per_day = 10_0000;
+                operation_cost = 1000;
+                freezing_threshold_days = 10;
+                exempt_balance = null;
+            };
+            billing_fee_collecting = {
+                pylon = 1;
+                author = 10;
+                author_account = {
+                    owner = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+                    subaccount = null;
+                };
+            };
         };
     };
 
@@ -64,6 +79,9 @@ module {
         age_seconds : ?Nat64;
     };
 
+    // TODO: 
+    // Possibly remove null options for variables and delay in the mem
+    // Will ensure the neurons are configured properly and you don't need to call modify after creation
     public type Mem = {
         init : {
             ledger : Principal;
@@ -135,12 +153,15 @@ module {
         };
     };
 
+    // When modifying you can't set back to null
     public type ModifyRequest = {
-
+        update_followee : Nat64;
+        update_dissolving : Bool;
     };
 
     public func modifyRequestMut(mem : Mem, t : ModifyRequest) : Result.Result<(), Text> {
-        // when variable changes set the associating internal back to init
+        mem.variables.update_followee := ?t.update_followee;
+        mem.variables.update_dissolving := ?t.update_dissolving;
         #ok();
     };
 
