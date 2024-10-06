@@ -7,7 +7,9 @@ import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 import AccountIdentifier "mo:account-identifier";
+import Account "mo:account";
 import Hex "mo:encoding/Hex";
+// import SnsLedgerInterface "mo:neuro/interfaces/sns_ledger_interface";
 
 shared ({ caller = owner }) actor class () = this {
 
@@ -31,13 +33,6 @@ shared ({ caller = owner }) actor class () = this {
     let nodes = Node.Node<system, T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>({
         mem = node_mem;
         dvf;
-        nodeCreateFee = func(_node) {
-            let dvf_ledgers = dvf.get_ledger_ids();
-            {
-                amount = 1_0000_0000;
-                ledger = dvf_ledgers[1];
-            };
-        };
         settings = {
             ALLOW_TEMP_NODE_CREATION = true;
             TEMP_NODE_EXPIRATION_SEC = (60 * 60); // 1 hour
@@ -53,6 +48,7 @@ shared ({ caller = owner }) actor class () = this {
         modifyRequestMut = T.modifyRequestMut;
         getDefaults = T.getDefaults;
         meta = T.meta;
+        nodeMeta = T.nodeMeta;
     });
 
     let vector = V.NeuronVector({
@@ -76,19 +72,14 @@ shared ({ caller = owner }) actor class () = this {
     );
 
     ignore Timer.recurringTimer<system>(
-        #seconds(3),
+        #seconds(60),
         func() : async () {
-            await* vector.cache_cycle(nodes)
-
+            await* vector.cache_cycle(nodes);
         },
     );
 
     public query func icrc55_get_nodefactory_meta() : async ICRC55.NodeFactoryMetaResp {
         nodes.icrc55_get_nodefactory_meta();
-    };
-
-    public query ({ caller }) func icrc55_create_node_get_fee(req : ICRC55.NodeRequest, creq : T.CreateRequest) : async ICRC55.NodeCreateFeeResp {
-        nodes.icrc55_create_node_get_fee(caller, req, creq);
     };
 
     public shared ({ caller }) func icrc55_command(cmds : [ICRC55.Command<T.CreateRequest, T.ModifyRequest>]) : async [ICRC55.CommandResponse<T.Shared>] {
@@ -144,8 +135,12 @@ shared ({ caller = owner }) actor class () = this {
 
     // Dashboard explorer doesn't show icrc accounts in text format, this does
     // Hard to send tokens to Candid ICRC Accounts
-    public query func get_node_addr(vid : Node.NodeId) : async ?Text {
-        let ?(_, _vec) = nodes.getNode(#id(vid)) else return null;
+    public query func get_node_addr(vid : Node.NodeId) : async ?{
+        account_id : Text;
+        icrc_account : Text;
+        billing_account : Text;
+    } {
+        let ?node = nodes.icrc55_get_node(#id(vid)) else return null;
 
         let subaccount = Node.port2subaccount({
             vid;
@@ -153,7 +148,41 @@ shared ({ caller = owner }) actor class () = this {
             id = 0;
         });
 
-        AccountIdentifier.accountIdentifier(Principal.fromActor(this), subaccount) |> Blob.toArray(_) |> ?Hex.encode(_);
+        ?{
+            account_id = AccountIdentifier.accountIdentifier(Principal.fromActor(this), subaccount) |> Blob.toArray(_) |> Hex.encode(_);
+            icrc_account = Account.toText({
+                owner = Principal.fromActor(this);
+                subaccount = ?subaccount;
+            });
+            billing_account = Account.toText(node.billing.account);
+        };
     };
+
+    // TODO remove:
+    
+    // let NtnLedger = actor "f54if-eqaaa-aaaaq-aacea-cai" : SnsLedgerInterface.Self;
+
+    // public func claim_back() : async Text {
+    //     let ?node = nodes.icrc55_get_node(#id(0)) else return "No node found";
+
+    //     let fee = await NtnLedger.icrc1_fee();
+    //     let bal = await NtnLedger.icrc1_balance_of({
+    //         owner = THIS_CANISTER;
+    //         subaccount = null;
+    //     });
+    //     let #Ok(_) = await NtnLedger.icrc1_transfer({
+    //         to = {
+    //             owner = Principal.fromText("jv4ws-fbili-a35rv-xd7a5-xwvxw-trink-oluun-g7bcp-oq5f6-35cba-vqe");
+    //             subaccount = null;
+    //         };
+    //         fee = null;
+    //         memo = null;
+    //         from_subaccount = null;
+    //         created_at_time = null;
+    //         amount = bal - fee;
+    //     }) else return "Failed to transfer";
+
+    //     return "Done";
+    // };
 
 };

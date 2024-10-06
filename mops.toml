@@ -1,6 +1,6 @@
 [dependencies]
 base = "0.13.0"
-devefi = "0.2.8"
+devefi = "0.3.1"
 neuro = "0.7.0"
 account = "1.0.1"
 account-identifier = "1.0.2"
