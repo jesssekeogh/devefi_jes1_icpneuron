@@ -1,0 +1,17 @@
+{
+  "devDependencies": {
+    "@hadronous/pic": "^0.8.1",
+    "@types/jest": "^29.5.13",
+    "@types/node": "^22.7.4",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "@dfinity/agent": "^1.4.0",
+    "@dfinity/principal": "^2.1.2",
+    "ts-node": "^10.9.2"
+  }
+}
