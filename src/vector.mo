@@ -41,6 +41,7 @@ module {
             14, // SNS & Community Fund
         ];
 
+        // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/proto/ic_nns_governance/pb/v1/governance.proto#L149
         let NEURON_STATES = {
             locked : Int32 = 1;
             dissolving : Int32 = 2;
@@ -158,12 +159,16 @@ module {
         private func update_spawning_neurons_cache(nodeMem : N.Mem, vid : Nat32, fullNeurons : Map.Map<Blob, GovT.Neuron>) : () {
             let spawningNeurons = Vector.Vector<N.SpawningNeuronCache>();
 
+            // finds neurons that this vector owner has created and adds them to the cache
+            // start at 1, 0 is reserved for the vectors main neuron
             var idx : Nat32 = 1;
             label idxLoop while (idx <= nodeMem.internals.local_idx) {
                 let spawningNonce : Nat64 = U.get_neuron_nonce(vid, idx);
                 let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(canister_id, spawningNonce);
                 let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else continue idxLoop;
 
+                // adds spawning neurons too, a possible memory adjustment could be to just add spawned neurons,
+                // it is nice to show the vector owner the neurons that are spawning though
                 if (full.cached_neuron_stake_e8s > 0 or full.maturity_e8s_equivalent > 0) {
                     spawningNeurons.add({
                         var nonce = spawningNonce;
@@ -181,7 +186,7 @@ module {
 
         private func claim_neuron(nodeMem : N.Mem, vid : Nat32) : async* () {
             if (Option.isSome(nodeMem.cache.neuron_id)) return;
-            let firstNonce = U.get_neuron_nonce(vid, 0);
+            let firstNonce = U.get_neuron_nonce(vid, 0); // first localIdx for every neuron is always 0
             let #ok(neuronId) = await* nns.claimNeuron({ nonce = firstNonce }) else return;
             nodeMem.cache.neuron_id := ?neuronId;
             nodeMem.cache.nonce := ?firstNonce;
@@ -192,6 +197,7 @@ module {
             let ?firstNonce = nodeMem.cache.nonce else return;
             let ?refresh_idx = nodeMem.internals.refresh_idx else return;
             if (icp_ledger_cls.isSent(refresh_idx)) {
+                // remove the ID first to avoid clearing a possible new ID after the await
                 nodeMem.internals.refresh_idx := null;
 
                 let #ok(_) = await* nns.claimNeuron({
@@ -315,6 +321,7 @@ module {
 
         private func claim_maturity(nodeMem : N.Mem, destination : Node.DestinationEndpoint) : async* () {
             label spawnLoop for (spawningNeuron in nodeMem.internals.spawning_neurons.vals()) {
+                // Once a neuron is spawned, the maturity is converted into staked ICP
                 if (spawningNeuron.cached_neuron_stake_e8s > 0) {
                     let neuron = NNS.Neuron({
                         nns_canister_id = icp_governance;
