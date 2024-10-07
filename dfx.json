@@ -5,7 +5,7 @@
       "type": "motoko",
       "declarations": {
         "node_compatibility": true,
-        "output": "tests/nodejs/declarations"
+        "output": "tests/nodejs/declarations/nnsvector"
       }
     }
   },

@@ -27,3 +27,4 @@ new_canister_ids.json
 .mops
 canister.sh
 upgrade.sh
+init.did

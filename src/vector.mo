@@ -19,6 +19,7 @@ module {
     public class NeuronVector({
         canister_id : Principal;
         icp_ledger : Principal;
+        icp_ledger_cls : DeVeFi.LedgerCls;
         icp_governance : Principal;
     }) {
 
@@ -67,7 +68,7 @@ module {
             };
         };
 
-        public func async_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>, icp_cls : ?DeVeFi.LedgerCls) : async* () {
+        public func async_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
             label vloop for ((vid, vec) in nodes.entries()) {
                 if (not vec.active) continue vloop;
                 if (not nodes.hasDestination(vec, 0)) continue vloop;
@@ -77,7 +78,7 @@ module {
                         if (not ready(nodeMem)) continue vloop;
                         try {
                             await* claim_neuron(nodeMem, vid);
-                            await* refresh_neuron(nodeMem, icp_cls);
+                            await* refresh_neuron(nodeMem);
                             await* update_delay(nodeMem);
                             await* update_followees(nodeMem);
                             await* update_dissolving(nodeMem);
@@ -192,11 +193,11 @@ module {
             nodeMem.cache.nonce := ?firstNonce;
         };
 
-        private func refresh_neuron(nodeMem : N.Mem, icp_cls : ?DeVeFi.LedgerCls) : async* () {
-            let ?{ cls = #icp(icp_ledger_cls) } = icp_cls else return;
+        private func refresh_neuron(nodeMem : N.Mem) : async* () {
+            let { cls = #icp(ledger) } = icp_ledger_cls else return;
             let ?firstNonce = nodeMem.cache.nonce else return;
             let ?refresh_idx = nodeMem.internals.refresh_idx else return;
-            if (icp_ledger_cls.isSent(refresh_idx)) {
+            if (ledger.isSent(refresh_idx)) {
                 // remove the ID first to avoid clearing a possible new ID after the await
                 nodeMem.internals.refresh_idx := null;
 

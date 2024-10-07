@@ -6,16 +6,15 @@ import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 
-shared ({ caller = owner }) actor class () = this {
-
-    let NTN_LEDGER = Principal.fromText("f54if-eqaaa-aaaaq-aacea-cai");
-    let ICP_LEDGER = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
-    let ICP_GOVERNANCE = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
-    let THIS_CANISTER = Principal.fromText("7cotl-6aaaa-aaaam-ade2q-cai");
+shared ({ caller = owner }) actor class ({
+    icp_governance : Principal;
+    icp_ledger : Principal;
+    fee_ledger : Principal;
+}) = this {
 
     let supportedLedgers : [Principal] = [
-        ICP_LEDGER,
-        NTN_LEDGER,
+        icp_ledger,
+        fee_ledger,
     ];
 
     stable let dvf_mem = DeVeFi.Mem();
@@ -46,31 +45,21 @@ shared ({ caller = owner }) actor class () = this {
         nodeMeta = T.nodeMeta;
     });
 
-    let vector = V.NeuronVector({
-        canister_id = THIS_CANISTER;
-        icp_ledger = ICP_LEDGER;
-        icp_governance = ICP_GOVERNANCE;
-    });
+    var vector : ?V.NeuronVector = null;
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
-        func() : async () {
-            vector.sync_cycle(nodes);
-        },
+        func() : async () { ignore do ? { vector!.sync_cycle(nodes) } },
     );
 
     ignore Timer.recurringTimer<system>(
         #seconds(3),
-        func() : async () {
-            await* vector.async_cycle(nodes, dvf.get_ledger(ICP_LEDGER));
-        },
+        func() : async () { ignore do ? { await* vector!.async_cycle(nodes) } },
     );
 
     ignore Timer.recurringTimer<system>(
         #seconds(60),
-        func() : async () {
-            await* vector.cache_cycle(nodes);
-        },
+        func() : async () { ignore do ? { await* vector!.cache_cycle(nodes) } },
     );
 
     public query func icrc55_get_nodefactory_meta() : async ICRC55.NodeFactoryMetaResp {
@@ -100,6 +89,14 @@ shared ({ caller = owner }) actor class () = this {
         assert (Principal.isController(caller));
         dvf.start<system>(Principal.fromActor(this));
         nodes.start<system>(Principal.fromActor(this));
+        vector := do ? {
+            V.NeuronVector({
+                canister_id = Principal.fromActor(this);
+                icp_ledger = icp_ledger;
+                icp_ledger_cls = dvf.get_ledger(icp_ledger)!;
+                icp_governance = icp_governance;
+            });
+        };
     };
 
     // ---------- Debug functions -----------
