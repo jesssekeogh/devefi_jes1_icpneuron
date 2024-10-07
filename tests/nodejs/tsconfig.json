@@ -29,6 +29,7 @@
     "noPropertyAccessFromIndexSignature": true
   },
   "include": [
+    "./setup/*.ts",
     "**/*.spec.ts",
     "./src/**/*.ts",
     "nodejs/global-setup.ts",
