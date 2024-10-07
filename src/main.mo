@@ -62,16 +62,16 @@ shared ({ caller = owner }) actor class ({
         func() : async () { ignore do ? { await* vector!.cache_cycle(nodes) } },
     );
 
-    public query func icrc55_get_nodefactory_meta() : async ICRC55.NodeFactoryMetaResp {
-        nodes.icrc55_get_nodefactory_meta();
+    public query func icrc55_get_pylon_meta() : async ICRC55.NodeFactoryMetaResp {
+        nodes.icrc55_get_pylon_meta();
     };
 
     public shared ({ caller }) func icrc55_command(cmds : [ICRC55.Command<T.CreateRequest, T.ModifyRequest>]) : async [ICRC55.CommandResponse<T.Shared>] {
         nodes.icrc55_command(caller, cmds);
     };
 
-    public query func icrc55_get_node(req : ICRC55.GetNode) : async ?Node.NodeShared<T.Shared> {
-        nodes.icrc55_get_node(req);
+    public query func icrc55_get_nodes(req : [ICRC55.GetNode]) : async [?Node.NodeShared<T.Shared>] {
+        nodes.icrc55_get_nodes(req);
     };
 
     public query ({ caller }) func icrc55_get_controller_nodes(req : ICRC55.GetControllerNodesRequest) : async [Node.NodeShared<T.Shared>] {
