@@ -28,3 +28,4 @@ new_canister_ids.json
 canister.sh
 upgrade.sh
 init.did
+tests/nns_state/
