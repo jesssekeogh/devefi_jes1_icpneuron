@@ -6,7 +6,7 @@ import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 
-shared ({ caller = owner }) actor class ({
+shared ({ caller = owner }) actor class NNSVECTOR ({
     icp_governance : Principal;
     icp_ledger : Principal;
     fee_ledger : Principal;

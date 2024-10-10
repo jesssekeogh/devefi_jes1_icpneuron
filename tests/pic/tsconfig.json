@@ -29,11 +29,12 @@
     "noPropertyAccessFromIndexSignature": true
   },
   "include": [
+    "./setup/*/*.ts",
     "./setup/*.ts",
     "**/*.spec.ts",
     "./src/**/*.ts",
     "nodejs/global-setup.ts",
     "nodejs/global-teardown.ts",
     "./types.d.ts"
-  ]
+, "setup/nns/oldgovernance.ts", "setup/nns/oldledger.ts"  ]
 }
