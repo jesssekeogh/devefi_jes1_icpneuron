@@ -24,16 +24,21 @@ module {
                 cost_per_day = 10_0000;
                 operation_cost = 1000;
                 freezing_threshold_days = 10;
-                exempt_balance = null;
-            };
-            billing_fee_collecting = {
-                pylon = 1;
-                author = 10;
-                author_account = {
-                    owner = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
-                    subaccount = null;
+                one_time_payment = null;
+                transaction_fee = #none;
+                split = {
+                    pylon = 1;
+                    author = 10;
+                    affiliate = 1;
                 };
             };
+        };
+    };
+
+    public func authorAccount() : ICRC55.Account {
+        {
+            owner = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"); // TODO change
+            subaccount = null;
         };
     };
 
@@ -79,7 +84,7 @@ module {
         age_seconds : ?Nat64;
     };
 
-    // TODO: 
+    // TODO:
     // Possibly remove null options for variables and delay in the mem
     // Will ensure the neurons are configured properly and you don't need to call modify after creation
     public type Mem = {
