@@ -35,6 +35,13 @@ module {
         };
     };
 
+    public func authorAccount(node : Mem) : ICRC55.Account {
+        switch (node) {
+            case (#nns_neuron(_)) Neuron.authorAccount();
+        };
+
+    };
+
     public func sourceMap(id : Node.NodeId, custom : Mem, thiscan : Principal, sourcesProvided : [ICRC55.Endpoint]) : Result.Result<[ICRC55.Endpoint], Text> {
         switch (custom) {
             case (#nns_neuron(t)) Neuron.request2Sources(t, id, thiscan, sourcesProvided);
