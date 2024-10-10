@@ -6,7 +6,7 @@ import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
 
-shared ({ caller = owner }) actor class NNSVECTOR ({
+shared ({ caller = owner }) actor class NNSVECTOR({
     icp_governance : Principal;
     icp_ledger : Principal;
     fee_ledger : Principal;
@@ -34,6 +34,10 @@ shared ({ caller = owner }) actor class NNSVECTOR ({
             MAX_DESTINATIONS = 1 : Nat8;
             PYLON_NAME = "NNS Vector";
             PYLON_GOVERNED_BY = "Neutrinite DAO";
+            PYLON_FEE_ACCOUNT = ?{
+                owner = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai"); // TODO change
+                subaccount = null;
+            };
         };
         toShared = T.toShared;
         sourceMap = T.sourceMap;
@@ -43,6 +47,7 @@ shared ({ caller = owner }) actor class NNSVECTOR ({
         getDefaults = T.getDefaults;
         meta = T.meta;
         nodeMeta = T.nodeMeta;
+        authorAccount = T.authorAccount;
     });
 
     var vector : ?V.NeuronVector = null;
@@ -80,6 +85,10 @@ shared ({ caller = owner }) actor class NNSVECTOR ({
 
     public query func icrc55_get_defaults(id : Text) : async T.CreateRequest {
         nodes.icrc55_get_defaults(id);
+    };
+
+    public query ({caller}) func icrc55_virtual_balances(req : ICRC55.VirtualBalancesRequest) : async ICRC55.VirtualBalancesResponse {
+        nodes.icrc55_virtual_balances(caller, req);
     };
 
     // We need to start the vector manually once when canister is installed, because we can't init dvf from the body

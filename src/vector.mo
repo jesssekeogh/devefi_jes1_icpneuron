@@ -82,7 +82,7 @@ module {
                             await* update_delay(nodeMem);
                             await* update_followees(nodeMem);
                             await* update_dissolving(nodeMem);
-                            await* disburse_neuron(nodeMem, vec.refund[0]);
+                            await* disburse_neuron(nodeMem, vec.refund);
                             await* spawn_maturity(nodeMem, vid);
                             await* claim_maturity(nodeMem, vec.destinations[0]);
                         } catch (_error) {
@@ -273,7 +273,7 @@ module {
             };
         };
 
-        private func disburse_neuron(nodeMem : N.Mem, refund : Node.Endpoint) : async* () {
+        private func disburse_neuron(nodeMem : N.Mem, refund : Node.Account) : async* () {
             let ?neuron_id = nodeMem.cache.neuron_id else return;
             let ?updateDissolving = nodeMem.variables.update_dissolving else return;
             let ?dissolvingState = nodeMem.cache.state else return;
@@ -285,13 +285,11 @@ module {
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
-                let #ic({ account }) = refund else return;
-
                 let #ok(_) = await* neuron.disburse({
                     to_account = ?{
                         hash = AccountIdentifier.accountIdentifier(
-                            account.owner,
-                            Option.get(account.subaccount, AccountIdentifier.defaultSubaccount()),
+                            refund.owner,
+                            Option.get(refund.subaccount, AccountIdentifier.defaultSubaccount()),
                         ) |> Blob.toArray(_);
                     };
                     amount = null;
