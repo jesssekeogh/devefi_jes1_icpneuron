@@ -227,9 +227,17 @@ module {
         };
     };
 
-    // Mapping of source node ports
     public func request2Sources(t : Mem, id : Node.NodeId, thiscan : Principal, sources : [ICRC55.Endpoint]) : Result.Result<[ICRC55.Endpoint], Text> {
         let #ok(a0) = U.expectSourceAccount(t.init.ledger, thiscan, sources, 0) else return #err("Invalid source 0");
+        let sourceName : Text = switch (sources.size()) {
+            case (0) { "" };
+            case _ {
+                let #ic({ name }) = sources[0] else {
+                    return #err("Source name not found");
+                };
+                name;
+            };
+        };
 
         #ok(
             Array.tabulate<ICRC55.Endpoint>(
@@ -247,25 +255,29 @@ module {
                             });
                         },
                     );
-                    name = "";
+                    name = sourceName;
                 },
             )
         );
     };
 
-    // Mapping of destination node ports
-    //
-    // Allows you to change destinations and dynamically create new ones based on node state upon creation or modification
-    // Fills in the account field when destination accounts are given
-    // or leaves them null when not given
     public func request2Destinations(t : Mem, req : [ICRC55.DestinationEndpoint]) : Result.Result<[ICRC55.DestinationEndpoint], Text> {
         let #ok(acc) = U.expectDestinationAccount(t.init.ledger, req, 0) else return #err("Invalid destination 0");
+        let destinationName : Text = switch (req.size()) {
+            case (0) { "" };
+            case _ {
+                let #ic({ name }) = req[0] else {
+                    return #err("Destination name not found");
+                };
+                name;
+            };
+        };
 
-        #ok([
+        return #ok([
             #ic {
                 ledger = t.init.ledger;
                 account = acc;
-                name = "";
+                name = destinationName;
             }
         ]);
     };
