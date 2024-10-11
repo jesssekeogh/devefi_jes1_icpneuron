@@ -1,5 +1,16 @@
-import { _SERVICE as NNSVECTOR } from "../declarations/nnsvector/nnsvector.did.js";
-import { _SERVICE as ICRCLEDGER } from "../setup/icrcledger/icrcledger.idl.js";
+import {
+  _SERVICE as NNSVECTOR,
+  CreateRequest,
+  NodeRequest,
+  NodeShared,
+  LocalNodeId as NodeId,
+  GetNodeResponse,
+} from "../declarations/nnsvector/nnsvector.did.js";
+import {
+  _SERVICE as ICRCLEDGER,
+  Account,
+  TransferResult,
+} from "../setup/icrcledger/icrcledger.idl.js";
 import {
   _SERVICE as GOVERNANCE,
   idlFactory as governanceIdlFactory,
@@ -22,6 +33,7 @@ import {
   NNS_SUBNET_ID,
 } from "./constants";
 import { NNSVector, ICRCLedger } from "./index";
+import { minterIdentity } from "./nns/identity.ts";
 
 export class Setup {
   private readonly me: ReturnType<typeof createIdentity>;
@@ -45,6 +57,10 @@ export class Setup {
     this.icrcActor = icrcActor;
     this.nnsActor = nnsActor;
     this.ledgerActor = ledgerActor;
+
+    // set identitys as me
+    this.vectorActor.setIdentity(this.me);
+    this.icrcActor.setIdentity(this.me);
   }
 
   public static async beforeAll(): Promise<Setup> {
@@ -58,6 +74,9 @@ export class Setup {
         },
       },
     });
+
+    await pic.setTime(new Date().getTime());
+    await pic.tick();
 
     let me = createIdentity("superSecretAlicePassword");
 
@@ -83,6 +102,21 @@ export class Setup {
       ledgerIdlFactory,
       ICP_LEDGER_CANISTER_ID
     );
+
+    // set identity as minter
+    ledgerActor.setIdentity(minterIdentity);
+    // mint ICP tokens
+    await ledgerActor.icrc1_transfer({
+      from_subaccount: [],
+      to: { owner: me.getPrincipal(), subaccount: [] },
+      amount: 100000000000n,
+      fee: [],
+      memo: [],
+      created_at_time: [],
+    });
+
+    // start pylon
+    await vectorFixture.actor.start();
 
     return new Setup(
       pic,
@@ -113,5 +147,122 @@ export class Setup {
   public getIcpLedger(): Actor<LEDGER> {
     return this.ledgerActor;
   }
-  
+
+  public async createNode(): Promise<NodeShared> {
+    let req: NodeRequest = {
+      controllers: [this.me.getPrincipal()],
+      destinations: [
+        {
+          ic: {
+            name: "hey account",
+            ledger: ICP_LEDGER_CANISTER_ID,
+            account: [{ owner: this.me.getPrincipal(), subaccount: [] }],
+          },
+        },
+      ],
+      refund: { owner: this.me.getPrincipal(), subaccount: [] },
+      sources: [],
+      extractors: [],
+      affiliate: [],
+    };
+
+    let creq: CreateRequest = {
+      nns_neuron: {
+        init: { ledger: ICP_LEDGER_CANISTER_ID, delay_seconds: [] },
+        variables: {
+          update_followee: [],
+          update_dissolving: [],
+        },
+      },
+    };
+
+    let resp = await this.vectorActor.icrc55_command([
+      { create_node: [req, creq] },
+    ]);
+
+    //@ts-ignore
+    return resp[0].create_node.ok;
+  }
+
+  public async getNode(nodeId: NodeId): Promise<GetNodeResponse> {
+    let resp = await this.vectorActor.icrc55_get_nodes([{ id: nodeId }]);
+    if (resp[0][0] === undefined) throw new Error("Node not found");
+    return resp[0][0];
+  }
+
+  public async sendIcrc(to: Account, amount: bigint): Promise<TransferResult> {
+    let txresp = await this.icrcActor.icrc1_transfer({
+      from_subaccount: [],
+      to: to,
+      amount: amount,
+      fee: [],
+      memo: [],
+      created_at_time: [],
+    });
+
+    if (!("Ok" in txresp)) {
+      throw new Error("Transaction failed");
+    }
+
+    return txresp;
+  }
+
+  public async sendIcp(to: Account, amount: bigint): Promise<TransferResult> {
+    let txresp = await this.ledgerActor.icrc1_transfer({
+      from_subaccount: [],
+      to: to,
+      amount: amount,
+      fee: [],
+      memo: [],
+      created_at_time: [],
+    });
+
+    if (!("Ok" in txresp)) {
+      throw new Error("Transaction failed");
+    }
+
+    return txresp;
+  }
+
+  public async getMyBalances() {
+    let icrc = await this.icrcActor.icrc1_balance_of({
+      owner: this.me.getPrincipal(),
+      subaccount: [],
+    });
+
+    let icp = await this.ledgerActor.icrc1_balance_of({
+      owner: this.me.getPrincipal(),
+      subaccount: [],
+    });
+
+    return { icrc_tokens: icrc, icp_tokens: icp };
+  }
+
+  public async getNodeSourceAccount(node: NodeShared): Promise<Account> {
+    if (!node || node.sources.length === 0) {
+      throw new Error("Invalid node or no sources found");
+    }
+
+    let endpoint = node.sources[0].endpoint;
+
+    if ("ic" in endpoint) {
+      return endpoint.ic.account;
+    }
+
+    throw new Error("Invalid endpoint type: 'ic' endpoint expected");
+  }
+
+  public async getNodeDestinationAccount(node : NodeShared): Promise<Account> {
+    if (!node || node.destinations.length === 0) {
+      throw new Error("Invalid node or no sources found");
+    }
+
+    let endpoint = node.destinations[0];
+
+    if ("ic" in endpoint && endpoint.ic.account.length > 0) {
+      return endpoint.ic.account[0];
+    }
+
+    throw new Error("Invalid endpoint type: 'ic' endpoint expected");
+  }
 }

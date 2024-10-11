@@ -30,8 +30,6 @@ shared ({ caller = owner }) actor class NNSVECTOR({
         settings = {
             Node.DEFAULT_SETTINGS with
             ALLOW_TEMP_NODE_CREATION = true;
-            MAX_SOURCES = 1 : Nat8;
-            MAX_DESTINATIONS = 1 : Nat8;
             PYLON_NAME = "NNS Vector";
             PYLON_GOVERNED_BY = "Neutrinite DAO";
             PYLON_FEE_ACCOUNT = ?{
