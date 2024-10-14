@@ -23,6 +23,18 @@ module {
         icp_governance : Principal;
     }) {
 
+        //
+        // Debug
+        //
+        var lastErr : Text = "";
+
+        public func get_last_err() : Text {
+            lastErr;
+        };
+        //
+        // Debug
+        //
+
         let nns = NNS.Governance({
             canister_id = canister_id;
             nns_canister_id = icp_governance;
@@ -54,15 +66,18 @@ module {
             label vloop for ((vid, vec) in nodes.entries()) {
                 if (not vec.active) continue vloop;
                 if (not nodes.hasDestination(vec, 0)) continue vloop;
-
                 let ?source = nodes.getSource(vid, vec, 0) else continue vloop;
                 if (source.balance() <= source.fee()) continue vloop;
 
                 switch (vec.custom) {
                     case (#nns_neuron(nodeMem)) {
-                        let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(canister_id, Nat64.fromNat32(vid));
+                        let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(canister_id, U.get_neuron_nonce(vid, 0));
+
                         let #ok(txId) = source.send(#external_account({ owner = icp_governance; subaccount = ?neuronSubaccount }), source.balance()) else continue vloop;
-                        nodeMem.internals.refresh_idx := ?txId;
+                        // if a neuron exists, we refresh
+                        if (Option.isSome(nodeMem.cache.neuron_id)) {
+                            nodeMem.internals.refresh_idx := ?txId;
+                        };
                     };
                 };
             };

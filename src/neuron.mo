@@ -18,19 +18,24 @@ module {
             description = "Stake NNS neurons and receive ICP maturity";
             supported_ledgers = all_ledgers;
             version = #alpha;
-            billing = {
-                ledger = U.onlyICLedger(all_ledgers[1]);
-                min_create_balance = 5000000;
-                cost_per_day = 10_0000;
-                operation_cost = 1000;
-                freezing_threshold_days = 10;
-                one_time_payment = null;
-                transaction_fee = #none;
-                split = {
-                    pylon = 1;
-                    author = 10;
-                    affiliate = 1;
-                };
+            billing = billing();
+        };
+    };
+
+    public func billing() : ICRC55.Billing {
+        {
+            ledger = Principal.fromText("7tjcv-pp777-77776-qaaaa-cai"); // TODO change, using Test ledger now
+            // ledger = Principal.fromText("f54if-eqaaa-aaaaq-aacea-cai");
+            min_create_balance = 5000000;
+            cost_per_day = 10_0000;
+            operation_cost = 1000;
+            freezing_threshold_days = 10;
+            exempt_daily_cost_balance = null;
+            transaction_fee = #none;
+            split = {
+                pylon = 300;
+                author = 500;
+                affiliate = 200;
             };
         };
     };

@@ -1,6 +1,6 @@
 [dependencies]
 base = "0.13.1"
-devefi = "0.3.6"
+devefi = "0.3.7"
 neuro = "0.7.0"
 map = "9.0.1"
 vector = "0.4.1"
