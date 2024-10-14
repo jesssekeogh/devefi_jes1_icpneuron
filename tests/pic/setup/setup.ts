@@ -59,6 +59,7 @@ export class Setup {
     this.ledgerActor = ledgerActor;
 
     // set identitys as me
+    this.ledgerActor.setIdentity(this.me);
     this.vectorActor.setIdentity(this.me);
     this.icrcActor.setIdentity(this.me);
   }
@@ -148,13 +149,18 @@ export class Setup {
     return this.ledgerActor;
   }
 
+  public async advanceBlocksAndTime(ticks: number, minutes: number) {
+    await this.pic.advanceTime(minutes * 60 * 1000);
+    await this.pic.tick(ticks);
+  }
+
   public async createNode(): Promise<NodeShared> {
     let req: NodeRequest = {
       controllers: [this.me.getPrincipal()],
       destinations: [
         {
           ic: {
-            name: "hey account",
+            name: "default account",
             ledger: ICP_LEDGER_CANISTER_ID,
             account: [{ owner: this.me.getPrincipal(), subaccount: [] }],
           },
@@ -238,7 +244,7 @@ export class Setup {
     return { icrc_tokens: icrc, icp_tokens: icp };
   }
 
-  public async getNodeSourceAccount(node: NodeShared): Promise<Account> {
+  public getNodeSourceAccount(node: NodeShared): Account {
     if (!node || node.sources.length === 0) {
       throw new Error("Invalid node or no sources found");
     }
@@ -252,7 +258,14 @@ export class Setup {
     throw new Error("Invalid endpoint type: 'ic' endpoint expected");
   }
 
-  public async getNodeDestinationAccount(node : NodeShared): Promise<Account> {
+  public async getSourceBalance(nodeId: NodeId): Promise<bigint> {
+    let node = await this.getNode(nodeId);
+    if (node === undefined) return 0n;
+
+    return node.sources[0].balance;
+  }
+
+  public getNodeDestinationAccount(node: NodeShared): Account {
     if (!node || node.destinations.length === 0) {
       throw new Error("Invalid node or no sources found");
     }

@@ -39,7 +39,6 @@ module {
         switch (node) {
             case (#nns_neuron(_)) Neuron.authorAccount();
         };
-
     };
 
     public func sourceMap(id : Node.NodeId, custom : Mem, thiscan : Principal, sourcesProvided : [ICRC55.Endpoint]) : Result.Result<[ICRC55.Endpoint], Text> {
@@ -70,6 +69,12 @@ module {
     public func nodeMeta(custom : Mem, all_ledgers : [ICRC55.SupportedLedger]) : ICRC55.NodeMeta {
         switch (custom) {
             case (#nns_neuron(_)) Neuron.meta(all_ledgers);
+        };
+    };
+
+    public func nodeBilling(custom : Mem) : ICRC55.Billing {
+        switch (custom) {
+            case (#nns_neuron(_t)) Neuron.billing();
         };
     };
 
