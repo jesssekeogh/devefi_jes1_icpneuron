@@ -1,6 +1,7 @@
 import {
   _SERVICE as NNSVECTOR,
   CreateRequest,
+  ModifyNodeRequest,
   NodeRequest,
   NodeShared,
   LocalNodeId as NodeId,
@@ -34,6 +35,19 @@ import {
 } from "./constants";
 import { NNSVector, ICRCLedger } from "./index";
 import { minterIdentity } from "./nns/identity.ts";
+
+interface StakeNeuronParams {
+  dissolveDelay: bigint;
+  followee: bigint;
+  dissolving: boolean;
+}
+
+interface NeuronStates {
+  locked: number;
+  dissolving: number;
+  unlocked: number;
+  spawning: number;
+}
 
 export class Setup {
   private readonly me: ReturnType<typeof createIdentity>;
@@ -149,12 +163,16 @@ export class Setup {
     return this.ledgerActor;
   }
 
-  public async advanceBlocksAndTime(ticks: number, minutes: number) {
-    await this.pic.advanceTime(minutes * 60 * 1000);
-    await this.pic.tick(ticks);
+  public async advanceBlocksAndTime(rounds: number) {
+    for (let i = 0; i < rounds; i++) {
+      let mins = 6;
+      let blocks = 6;
+      await this.pic.advanceTime(mins * 60 * 1000);
+      await this.pic.tick(blocks);
+    }
   }
 
-  public async createNode(): Promise<NodeShared> {
+  public async createNode(stakeParams: StakeNeuronParams): Promise<NodeShared> {
     let req: NodeRequest = {
       controllers: [this.me.getPrincipal()],
       destinations: [
@@ -174,10 +192,13 @@ export class Setup {
 
     let creq: CreateRequest = {
       nns_neuron: {
-        init: { ledger: ICP_LEDGER_CANISTER_ID, delay_seconds: [] },
+        init: {
+          ledger: ICP_LEDGER_CANISTER_ID,
+          delay_seconds: stakeParams.dissolveDelay,
+        },
         variables: {
-          update_followee: [],
-          update_dissolving: [],
+          update_followee: stakeParams.followee,
+          update_dissolving: stakeParams.dissolving,
         },
       },
     };
@@ -188,6 +209,55 @@ export class Setup {
 
     //@ts-ignore
     return resp[0].create_node.ok;
+  }
+
+  public async modifyNode(
+    nodeId: number,
+    updateFollowee: [] | [bigint],
+    updateDissolving: [] | [boolean]
+  ) {
+    let mod: ModifyNodeRequest = [
+      nodeId,
+      [],
+      [
+        {
+          nns_neuron: {
+            update_dissolving: updateDissolving,
+            update_followee: updateFollowee,
+          },
+        },
+      ],
+    ];
+
+    let resp = await this.vectorActor.icrc55_command([{ modify_node: mod }]);
+    //@ts-ignore
+    return resp[0].modify_node.ok;
+  }
+
+  public async stakeNeuron(
+    stakeAmount: bigint,
+    stakeParams: StakeNeuronParams
+  ): Promise<NodeShared> {
+    let node = await this.createNode(stakeParams);
+    await this.advanceBlocksAndTime(1);
+
+    await this.payNodeBill(node);
+    await this.advanceBlocksAndTime(2);
+
+    await this.sendIcp(this.getNodeSourceAccount(node), stakeAmount);
+    await this.advanceBlocksAndTime(5);
+
+    let refreshedNode = await this.getNode(node.id);
+    return refreshedNode;
+  }
+
+  public async payNodeBill(node: NodeShared): Promise<void> {
+    let billingAccount = node.billing.account;
+    // pay the bare minimum needed, does not have extra for operation / daily costs (TODO test those later)
+    await this.sendIcrc(
+      billingAccount,
+      node.billing.min_create_balance + 10000n
+    );
   }
 
   public async getNode(nodeId: NodeId): Promise<GetNodeResponse> {
@@ -277,5 +347,14 @@ export class Setup {
     }
 
     throw new Error("Invalid endpoint type: 'ic' endpoint expected");
+  }
+
+  public getNeuronStates(): NeuronStates {
+    return {
+      locked: 1,
+      dissolving: 2,
+      unlocked: 3,
+      spawning: 4,
+    };
   }
 }

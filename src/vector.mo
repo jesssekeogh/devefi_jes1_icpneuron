@@ -222,25 +222,27 @@ module {
             };
         };
 
+        // TODO add the ability to increase later on
         private func update_delay(nodeMem : N.Mem) : async* () {
             let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let ?delaySeconds = nodeMem.init.delay_seconds else return;
+            let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return;
+            let delayToSet = nodeMem.init.delay_seconds;
 
-            if (Option.isNull(nodeMem.cache.dissolve_delay_seconds)) {
+            if (delayToSet > 0 and cachedDelay == 0) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
                 let #ok(_) = await* neuron.setDissolveTimestamp({
-                    dissolve_timestamp_seconds = U.get_now_nanos() + delaySeconds;
+                    dissolve_timestamp_seconds = (U.get_now_nanos() / 1_000_000_000) + delayToSet;
                 }) else return;
             };
         };
 
         private func update_followees(nodeMem : N.Mem) : async* () {
             let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let ?followeeToSet = nodeMem.variables.update_followee else return;
+            let followeeToSet = nodeMem.variables.update_followee;
 
             let currentFollowees = Map.fromIter<Int32, GovT.Followees>(nodeMem.cache.followees.vals(), Map.i32hash);
 
@@ -266,8 +268,8 @@ module {
 
         private func update_dissolving(nodeMem : N.Mem) : async* () {
             let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let ?updateDissolving = nodeMem.variables.update_dissolving else return;
             let ?dissolvingState = nodeMem.cache.state else return;
+            let updateDissolving = nodeMem.variables.update_dissolving;
 
             if (updateDissolving and dissolvingState == NEURON_STATES.locked) {
                 let neuron = NNS.Neuron({
@@ -290,10 +292,10 @@ module {
 
         private func disburse_neuron(nodeMem : N.Mem, refund : Node.Account) : async* () {
             let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let ?updateDissolving = nodeMem.variables.update_dissolving else return;
             let ?dissolvingState = nodeMem.cache.state else return;
             let ?cachedStake = nodeMem.cache.cached_neuron_stake_e8s else return;
-
+            let updateDissolving = nodeMem.variables.update_dissolving;
+            
             if (updateDissolving and dissolvingState == NEURON_STATES.unlocked and cachedStake >= 0) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
