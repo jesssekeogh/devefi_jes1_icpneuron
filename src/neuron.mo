@@ -89,17 +89,14 @@ module {
         age_seconds : ?Nat64;
     };
 
-    // TODO:
-    // Possibly remove null options for variables and delay in the mem
-    // Will ensure the neurons are configured properly and you don't need to call modify after creation
     public type Mem = {
         init : {
             ledger : Principal;
-            delay_seconds : ?Nat64;
+            delay_seconds : Nat64;
         };
         variables : {
-            var update_followee : ?Nat64;
-            var update_dissolving : ?Bool;
+            var update_followee : Nat64;
+            var update_dissolving : Bool;
         };
         internals : {
             var updating : Updating;
@@ -113,11 +110,11 @@ module {
     public type CreateRequest = {
         init : {
             ledger : Principal;
-            delay_seconds : ?Nat64;
+            delay_seconds : Nat64;
         };
         variables : {
-            update_followee : ?Nat64;
-            update_dissolving : ?Bool;
+            update_followee : Nat64;
+            update_dissolving : Bool;
         };
     };
 
@@ -154,35 +151,34 @@ module {
         {
             init = {
                 ledger = ledger;
-                delay_seconds = null;
+                delay_seconds = 15897600; // 184 days
             };
             variables = {
-                update_followee = null;
-                update_dissolving = null;
+                update_followee = 8571487073262291504; // neuronpool known neuron
+                update_dissolving = false; // not dissolving
             };
         };
     };
 
-    // When modifying you can't set back to null
     public type ModifyRequest = {
-        update_followee : Nat64;
-        update_dissolving : Bool;
+        update_followee : ?Nat64;
+        update_dissolving : ?Bool;
     };
 
     public func modifyRequestMut(mem : Mem, t : ModifyRequest) : Result.Result<(), Text> {
-        mem.variables.update_followee := ?t.update_followee;
-        mem.variables.update_dissolving := ?t.update_dissolving;
+        mem.variables.update_followee := Option.get(t.update_followee, mem.variables.update_followee);
+        mem.variables.update_dissolving := Option.get(t.update_dissolving, mem.variables.update_dissolving);
         #ok();
     };
 
     public type Shared = {
         init : {
             ledger : Principal;
-            delay_seconds : ?Nat64;
+            delay_seconds : Nat64;
         };
         variables : {
-            update_followee : ?Nat64;
-            update_dissolving : ?Bool;
+            update_followee : Nat64;
+            update_dissolving : Bool;
         };
         internals : {
             updating : Updating;
