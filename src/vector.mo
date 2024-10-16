@@ -10,6 +10,7 @@ import AccountIdentifier "mo:account-identifier";
 import { NNS } "mo:neuro";
 import Map "mo:map/Map";
 import Vector "mo:vector/Class";
+import Array "mo:base/Array";
 import T "./types";
 import N "./neuron";
 import U "./utils";
@@ -76,7 +77,9 @@ module {
                         let #ok(txId) = source.send(#external_account({ owner = icp_governance; subaccount = ?neuronSubaccount }), source.balance()) else continue vloop;
                         // if a neuron exists, we refresh
                         if (Option.isSome(nodeMem.cache.neuron_id)) {
-                            nodeMem.internals.refresh_idx := ?txId;
+                            let txs = Vector.fromArray<Nat64>(nodeMem.internals.refresh_idx);
+                            txs.add(txId);
+                            nodeMem.internals.refresh_idx := Vector.toArray(txs);
                         };
                     };
                 };
@@ -211,14 +214,18 @@ module {
         private func refresh_neuron(nodeMem : N.Mem) : async* () {
             let { cls = #icp(ledger) } = icp_ledger_cls else return;
             let ?firstNonce = nodeMem.cache.nonce else return;
-            let ?refresh_idx = nodeMem.internals.refresh_idx else return;
-            if (ledger.isSent(refresh_idx)) {
-                // remove the ID first to avoid clearing a possible new ID after the await
-                nodeMem.internals.refresh_idx := null;
 
-                let #ok(_) = await* nns.claimNeuron({
-                    nonce = firstNonce;
-                }) else return;
+            label refreshLoop for (idx in nodeMem.internals.refresh_idx.vals()) {
+                if (ledger.isSent(idx)) {
+                    let #ok(_) = await* nns.claimNeuron({
+                        nonce = firstNonce;
+                    }) else continue refreshLoop;
+
+                    nodeMem.internals.refresh_idx := Array.filter<Nat64>(
+                        nodeMem.internals.refresh_idx,
+                        func(x : Nat64) : Bool { x != idx },
+                    );
+                };
             };
         };
 
@@ -295,8 +302,8 @@ module {
             let ?dissolvingState = nodeMem.cache.state else return;
             let ?cachedStake = nodeMem.cache.cached_neuron_stake_e8s else return;
             let updateDissolving = nodeMem.variables.update_dissolving;
-            
-            if (updateDissolving and dissolvingState == NEURON_STATES.unlocked and cachedStake >= 0) {
+
+            if (updateDissolving and dissolvingState == NEURON_STATES.unlocked and cachedStake > 0) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
