@@ -101,7 +101,7 @@ module {
         internals : {
             var updating : Updating;
             var local_idx : Nat32;
-            var refresh_idx : ?Nat64;
+            var refresh_idx : [Nat64];
             var spawning_neurons : [SpawningNeuronCache];
         };
         cache : NeuronCache;
@@ -128,7 +128,7 @@ module {
             internals = {
                 var updating = #Init;
                 var local_idx = 0;
-                var refresh_idx = null;
+                var refresh_idx = [];
                 var spawning_neurons = [];
             };
             cache = {
@@ -183,7 +183,7 @@ module {
         internals : {
             updating : Updating;
             local_idx : Nat32;
-            refresh_idx : ?Nat64;
+            refresh_idx : [Nat64];
             spawning_neurons : [SharedSpawningNeuronCache];
         };
         cache : SharedNeuronCache;

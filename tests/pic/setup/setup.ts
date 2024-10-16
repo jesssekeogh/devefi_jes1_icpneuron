@@ -163,7 +163,15 @@ export class Setup {
     return this.ledgerActor;
   }
 
-  public async advanceBlocksAndTime(rounds: number) {
+  public async advanceTime(mins: number): Promise<void> {
+    await this.pic.advanceTime(mins * 60 * 1000);
+  }
+
+  public async advanceBlocks(blocks: number): Promise<void> {
+    await this.pic.tick(blocks);
+  }
+
+  public async advanceBlocksAndTime(rounds: number): Promise<void> {
     for (let i = 0; i < rounds; i++) {
       let mins = 6;
       let blocks = 6;
@@ -253,10 +261,9 @@ export class Setup {
 
   public async payNodeBill(node: NodeShared): Promise<void> {
     let billingAccount = node.billing.account;
-    // pay the bare minimum needed, does not have extra for operation / daily costs (TODO test those later)
     await this.sendIcrc(
       billingAccount,
-      node.billing.min_create_balance + 10000n
+      node.billing.min_create_balance * 100n // more than enough
     );
   }
 
