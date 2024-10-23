@@ -2,15 +2,18 @@ import Principal "mo:base/Principal";
 import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
 import Blob "mo:base/Blob";
+import Error "mo:base/Error";
+import Nat "mo:base/Nat";
 import Node "mo:devefi/node";
 import DeVeFi "mo:devefi";
 import Tools "mo:neuro/tools";
 import GovT "mo:neuro/interfaces/nns_interface";
-import AccountIdentifier "mo:account-identifier";
 import { NNS } "mo:neuro";
 import Map "mo:map/Map";
 import Vector "mo:vector/Class";
+import Buffer "mo:base/Buffer";
 import Array "mo:base/Array";
+import AI "mo:account-identifier";
 import T "./types";
 import N "./neuron";
 import U "./utils";
@@ -24,18 +27,6 @@ module {
         icp_governance : Principal;
     }) {
 
-        //
-        // Debug
-        //
-        var lastErr : Text = "";
-
-        public func get_last_err() : Text {
-            lastErr;
-        };
-        //
-        // Debug
-        //
-
         let nns = NNS.Governance({
             canister_id = canister_id;
             nns_canister_id = icp_governance;
@@ -47,6 +38,9 @@ module {
 
         // 1.06 ICP in e8s
         let MINIMUM_SPAWN : Nat64 = 106_000_000;
+
+        // Maximum number of activities to keep in the main neuron's activity log
+        let ACTIVITY_LOG_LIMIT : Nat = 10;
 
         // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/proto/ic_nns_governance/pb/v1/governance.proto#L41
         let GOVERNANCE_TOPICS : [Int32] = [
@@ -103,8 +97,8 @@ module {
                             await* disburse_neuron(nodeMem, vec.refund);
                             await* spawn_maturity(nodeMem, vid);
                             await* claim_maturity(nodeMem, vec.destinations[0]);
-                        } catch (_error) {
-                            // TODO log error
+                        } catch (err) {
+                            log_err(nodeMem, "async_cycle", Error.message(err));
                         } finally {
                             nodeMem.internals.updating := #Done(U.get_now_nanos());
                         };
@@ -134,23 +128,6 @@ module {
                     case (#nns_neuron(nodeMem)) {
                         update_neuron_cache(nodeMem, neuronInfos, fullNeurons);
                         update_spawning_neurons_cache(nodeMem, vid, fullNeurons);
-                    };
-                };
-            };
-        };
-
-        private func ready(nodeMem : N.Mem) : Bool {
-            switch (nodeMem.internals.updating) {
-                case (#Init) {
-                    nodeMem.internals.updating := #Calling(U.get_now_nanos());
-                    return true;
-                };
-                case (#Calling(ts) or #Done(ts)) {
-                    if (U.get_now_nanos() >= ts + TIMEOUT_NANOS) {
-                        nodeMem.internals.updating := #Calling(U.get_now_nanos());
-                        return true;
-                    } else {
-                        return false;
                     };
                 };
             };
@@ -206,9 +183,17 @@ module {
         private func claim_neuron(nodeMem : N.Mem, vid : Nat32) : async* () {
             if (Option.isSome(nodeMem.cache.neuron_id)) return;
             let firstNonce = U.get_neuron_nonce(vid, 0); // first localIdx for every neuron is always 0
-            let #ok(neuronId) = await* nns.claimNeuron({ nonce = firstNonce }) else return;
-            nodeMem.cache.neuron_id := ?neuronId;
-            nodeMem.cache.nonce := ?firstNonce;
+            switch (await* nns.claimNeuron({ nonce = firstNonce })) {
+                case (#ok(neuronId)) {
+                    nodeMem.cache.neuron_id := ?neuronId;
+                    nodeMem.cache.nonce := ?firstNonce;
+
+                    log_ok(nodeMem, "claim_neuron");
+                };
+                case (#err(err)) {
+                    log_err(nodeMem, "claim_neuron", debug_show err);
+                };
+            };
         };
 
         private func refresh_neuron(nodeMem : N.Mem) : async* () {
@@ -217,33 +202,42 @@ module {
 
             label refreshLoop for (idx in nodeMem.internals.refresh_idx.vals()) {
                 if (ledger.isSent(idx)) {
-                    let #ok(_) = await* nns.claimNeuron({
-                        nonce = firstNonce;
-                    }) else continue refreshLoop;
+                    switch (await* nns.claimNeuron({ nonce = firstNonce })) {
+                        case (#ok(_)) {
+                            nodeMem.internals.refresh_idx := Array.filter<Nat64>(
+                                nodeMem.internals.refresh_idx,
+                                func(x : Nat64) : Bool { x != idx },
+                            );
 
-                    nodeMem.internals.refresh_idx := Array.filter<Nat64>(
-                        nodeMem.internals.refresh_idx,
-                        func(x : Nat64) : Bool { x != idx },
-                    );
+                            log_ok(nodeMem, "refresh_neuron");
+                        };
+                        case (#err(err)) {
+                            log_err(nodeMem, "refresh_neuron", debug_show err);
+                        };
+                    };
                 };
             };
         };
 
-        // TODO add the ability to increase later on
         private func update_delay(nodeMem : N.Mem) : async* () {
             let ?neuron_id = nodeMem.cache.neuron_id else return;
             let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return;
-            let delayToSet = nodeMem.init.delay_seconds;
+            let delayToSet = nodeMem.variables.update_delay_seconds;
 
-            if (delayToSet > 0 and cachedDelay == 0) {
+            if (delayToSet > cachedDelay) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
-                let #ok(_) = await* neuron.setDissolveTimestamp({
-                    dissolve_timestamp_seconds = (U.get_now_nanos() / 1_000_000_000) + delayToSet;
-                }) else return;
+                switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = (U.get_now_nanos() / 1_000_000_000) + delayToSet })) {
+                    case (#ok(_)) {
+                        log_ok(nodeMem, "update_delay");
+                    };
+                    case (#err(err)) {
+                        log_err(nodeMem, "update_delay", debug_show err);
+                    };
+                };
             };
         };
 
@@ -265,10 +259,14 @@ module {
                         neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                     });
 
-                    let #ok(_) = await* neuron.follow({
-                        topic = topic;
-                        followee = followeeToSet;
-                    }) else continue topicLoop;
+                    switch (await* neuron.follow({ topic = topic; followee = followeeToSet })) {
+                        case (#ok(_)) {
+                            log_ok(nodeMem, "update_followees");
+                        };
+                        case (#err(err)) {
+                            log_err(nodeMem, "update_followees", debug_show err);
+                        };
+                    };
                 };
             };
         };
@@ -284,7 +282,14 @@ module {
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
-                let #ok(_) = await* neuron.startDissolving() else return;
+                switch (await* neuron.startDissolving()) {
+                    case (#ok(_)) {
+                        log_ok(nodeMem, "start_dissolving");
+                    };
+                    case (#err(err)) {
+                        log_err(nodeMem, "start_dissolving", debug_show err);
+                    };
+                };
             };
 
             if (not updateDissolving and dissolvingState == NEURON_STATES.dissolving) {
@@ -293,7 +298,14 @@ module {
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
-                let #ok(_) = await* neuron.stopDissolving() else return;
+                switch (await* neuron.stopDissolving()) {
+                    case (#ok(_)) {
+                        log_ok(nodeMem, "stop_dissolving");
+                    };
+                    case (#err(err)) {
+                        log_err(nodeMem, "stop_dissolving", debug_show err);
+                    };
+                };
             };
         };
 
@@ -309,15 +321,14 @@ module {
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
-                let #ok(_) = await* neuron.disburse({
-                    to_account = ?{
-                        hash = AccountIdentifier.accountIdentifier(
-                            refund.owner,
-                            Option.get(refund.subaccount, AccountIdentifier.defaultSubaccount()),
-                        ) |> Blob.toArray(_);
+                switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(refund.owner, Option.get(refund.subaccount, AI.defaultSubaccount())) |> Blob.toArray(_) }; amount = null })) {
+                    case (#ok(_)) {
+                        log_ok(nodeMem, "disburse_neuron");
                     };
-                    amount = null;
-                }) else return;
+                    case (#err(err)) {
+                        log_err(nodeMem, "disburse_neuron", debug_show err);
+                    };
+                };
             };
         };
 
@@ -334,11 +345,14 @@ module {
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
-                let #ok(_) = await* neuron.spawn({
-                    nonce = ?newNonce;
-                    new_controller = null;
-                    percentage_to_spawn = null;
-                }) else return;
+                switch (await* neuron.spawn({ nonce = ?newNonce; new_controller = null; percentage_to_spawn = null })) {
+                    case (#ok(_)) {
+                        log_ok(nodeMem, "spawn_maturity");
+                    };
+                    case (#err(err)) {
+                        log_err(nodeMem, "spawn_maturity", debug_show err);
+                    };
+                };
             };
         };
 
@@ -357,18 +371,57 @@ module {
 
                     let #ic({ account = ?account }) = destination else continue spawnLoop;
 
-                    let #ok(_) = await* neuron.disburse({
-                        to_account = ?{
-                            hash = AccountIdentifier.accountIdentifier(
-                                account.owner,
-                                Option.get(account.subaccount, AccountIdentifier.defaultSubaccount()),
-                            ) |> Blob.toArray(_);
+                    switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(account.owner, Option.get(account.subaccount, AI.defaultSubaccount())) |> Blob.toArray(_) }; amount = null })) {
+                        case (#ok(_)) {
+                            log_ok(nodeMem, "claim_maturity");
                         };
-                        amount = null;
-                    }) else continue spawnLoop;
+                        case (#err(err)) {
+                            log_err(nodeMem, "claim_maturity", debug_show err);
+                        };
+                    };
                 };
             };
         };
 
+        private func ready(nodeMem : N.Mem) : Bool {
+            switch (nodeMem.internals.updating) {
+                case (#Init) {
+                    nodeMem.internals.updating := #Calling(U.get_now_nanos());
+                    return true;
+                };
+                case (#Calling(ts) or #Done(ts)) {
+                    if (U.get_now_nanos() >= ts + TIMEOUT_NANOS) {
+                        nodeMem.internals.updating := #Calling(U.get_now_nanos());
+                        return true;
+                    } else {
+                        return false;
+                    };
+                };
+            };
+        };
+
+        private func log_ok(nodeMem : N.Mem, operation : Text) : () {
+            let activityLog = Buffer.fromArray<N.Activity>(nodeMem.internals.activity_log);
+
+            activityLog.add(#Ok({ operation = operation; timestamp = U.get_now_nanos() }));
+
+            if (activityLog.size() > ACTIVITY_LOG_LIMIT) {
+                ignore activityLog.remove(0); // remove 1 item from the beginning
+            };
+
+            nodeMem.internals.activity_log := Buffer.toArray(activityLog);
+        };
+
+        private func log_err(nodeMem : N.Mem, operation : Text, msg : Text) : () {
+            let activityLog = Buffer.fromArray<N.Activity>(nodeMem.internals.activity_log);
+
+            activityLog.add(#Err({ operation = operation; msg = msg; timestamp = U.get_now_nanos() }));
+
+            if (activityLog.size() > ACTIVITY_LOG_LIMIT) {
+                ignore activityLog.remove(0); // remove 1 item from the beginning
+            };
+
+            nodeMem.internals.activity_log := Buffer.toArray(activityLog);
+        };
     };
 };

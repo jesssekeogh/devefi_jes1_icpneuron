@@ -5,9 +5,6 @@ import V "./vector";
 import DeVeFi "mo:devefi";
 import ICRC55 "mo:devefi/ICRC55";
 import Node "mo:devefi/node";
-import AccountIdentifier "mo:account-identifier";
-import Blob "mo:base/Blob";
-import Hex "mo:encoding/Hex";
 
 shared ({ caller = owner }) actor class NNSVECTOR({
     icp_governance : Principal;
@@ -120,19 +117,4 @@ shared ({ caller = owner }) actor class NNSVECTOR({
         dvf.getLedgersInfo();
     };
 
-    public query func get_last_err() : async ?Text {
-        do ? { vector!.get_last_err() };
-    };
-
-    public query func get_node_addr(vid : Node.NodeId) : async ?Text {
-        let ?(_, vec) = nodes.getNode(#id(vid)) else return null;
-
-        let subaccount = Node.port2subaccount({
-            vid;
-            flow = #input;
-            id = 0;
-        });
-
-        AccountIdentifier.accountIdentifier(Principal.fromActor(this), subaccount) |> Blob.toArray(_) |> ?Hex.encode(_);
-    };
 };

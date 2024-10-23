@@ -47,7 +47,7 @@ describe("Stake", () => {
     // modify to a new followee and expect it to change
     let newFollowee: bigint = 8571487073262291504n;
 
-    await setup.modifyNode(node.id, [newFollowee], []);
+    await setup.modifyNode(node.id, [], [newFollowee], []);
     await setup.advanceBlocksAndTime(3);
     node = await setup.getNode(node.id);
 
@@ -65,7 +65,7 @@ describe("Stake", () => {
       setup.getNeuronStates().locked
     );
 
-    await setup.modifyNode(node.id, [], [true]);
+    await setup.modifyNode(node.id, [], [], [true]);
     await setup.advanceBlocksAndTime(3);
     node = await setup.getNode(node.id);
 

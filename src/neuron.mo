@@ -49,6 +49,30 @@ module {
 
     public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
 
+    public type Activity = {
+        #Ok : { operation : Text; timestamp : Nat64 };
+        #Err : { operation : Text; msg : Text; timestamp : Nat64 };
+    };
+
+    public type Mem = {
+        init : {
+            ledger : Principal;
+        };
+        variables : {
+            var update_delay_seconds : Nat64;
+            var update_followee : Nat64;
+            var update_dissolving : Bool;
+        };
+        internals : {
+            var updating : Updating;
+            var local_idx : Nat32;
+            var refresh_idx : [Nat64];
+            var spawning_neurons : [SpawningNeuronCache];
+            var activity_log : [Activity];
+        };
+        cache : NeuronCache;
+    };
+
     public type SpawningNeuronCache = {
         var nonce : Nat64;
         var maturity_e8s_equivalent : Nat64;
@@ -89,30 +113,12 @@ module {
         age_seconds : ?Nat64;
     };
 
-    public type Mem = {
-        init : {
-            ledger : Principal;
-            delay_seconds : Nat64;
-        };
-        variables : {
-            var update_followee : Nat64;
-            var update_dissolving : Bool;
-        };
-        internals : {
-            var updating : Updating;
-            var local_idx : Nat32;
-            var refresh_idx : [Nat64];
-            var spawning_neurons : [SpawningNeuronCache];
-        };
-        cache : NeuronCache;
-    };
-
     public type CreateRequest = {
         init : {
             ledger : Principal;
-            delay_seconds : Nat64;
         };
         variables : {
+            update_delay_seconds : Nat64;
             update_followee : Nat64;
             update_dissolving : Bool;
         };
@@ -122,6 +128,7 @@ module {
         {
             init = t.init;
             variables = {
+                var update_delay_seconds = t.variables.update_delay_seconds;
                 var update_followee = t.variables.update_followee;
                 var update_dissolving = t.variables.update_dissolving;
             };
@@ -130,6 +137,7 @@ module {
                 var local_idx = 0;
                 var refresh_idx = [];
                 var spawning_neurons = [];
+                var activity_log = [];
             };
             cache = {
                 var neuron_id = null;
@@ -151,9 +159,9 @@ module {
         {
             init = {
                 ledger = ledger;
-                delay_seconds = 15897600; // 184 days
             };
             variables = {
+                update_delay_seconds = 15897600; // 184 days
                 update_followee = 8571487073262291504; // neuronpool known neuron
                 update_dissolving = false; // not dissolving
             };
@@ -161,11 +169,13 @@ module {
     };
 
     public type ModifyRequest = {
+        update_delay_seconds : ?Nat64;
         update_followee : ?Nat64;
         update_dissolving : ?Bool;
     };
 
     public func modifyRequestMut(mem : Mem, t : ModifyRequest) : Result.Result<(), Text> {
+        mem.variables.update_delay_seconds := Option.get(t.update_delay_seconds, mem.variables.update_delay_seconds);
         mem.variables.update_followee := Option.get(t.update_followee, mem.variables.update_followee);
         mem.variables.update_dissolving := Option.get(t.update_dissolving, mem.variables.update_dissolving);
         #ok();
@@ -174,9 +184,9 @@ module {
     public type Shared = {
         init : {
             ledger : Principal;
-            delay_seconds : Nat64;
         };
         variables : {
+            update_delay_seconds : Nat64;
             update_followee : Nat64;
             update_dissolving : Bool;
         };
@@ -185,6 +195,7 @@ module {
             local_idx : Nat32;
             refresh_idx : [Nat64];
             spawning_neurons : [SharedSpawningNeuronCache];
+            activity_log : [Activity];
         };
         cache : SharedNeuronCache;
     };
@@ -193,6 +204,7 @@ module {
         {
             init = t.init;
             variables = {
+                update_delay_seconds = t.variables.update_delay_seconds;
                 update_followee = t.variables.update_followee;
                 update_dissolving = t.variables.update_dissolving;
             };
@@ -212,6 +224,7 @@ module {
                         };
                     },
                 );
+                activity_log = t.internals.activity_log;
             };
             cache = {
                 neuron_id = t.cache.neuron_id;
