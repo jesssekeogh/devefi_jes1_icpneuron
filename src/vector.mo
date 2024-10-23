@@ -107,7 +107,7 @@ module {
                             await* spawn_maturity(nodeMem, vid);
                             await* claim_maturity(nodeMem, vec.destinations[0]);
                         } catch (err) {
-                            log_err(nodeMem, "async_cycle", Error.message(err));
+                            log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
                         } finally {
                             nodeMem.internals.updating := #Done(U.get_now_nanos());
                         };
@@ -197,10 +197,10 @@ module {
                     nodeMem.cache.neuron_id := ?neuronId;
                     nodeMem.cache.nonce := ?firstNonce;
 
-                    log_ok(nodeMem, "claim_neuron");
+                    log_activity(nodeMem, "claim_neuron", #Ok);
                 };
                 case (#err(err)) {
-                    log_err(nodeMem, "claim_neuron", debug_show err);
+                    log_activity(nodeMem, "claim_neuron", #Err(debug_show err));
                 };
             };
         };
@@ -218,10 +218,10 @@ module {
                                 func(x : Nat64) : Bool { x != idx },
                             );
 
-                            log_ok(nodeMem, "refresh_neuron");
+                            log_activity(nodeMem, "refresh_neuron", #Ok);
                         };
                         case (#err(err)) {
-                            log_err(nodeMem, "refresh_neuron", debug_show err);
+                            log_activity(nodeMem, "refresh_neuron", #Err(debug_show err));
                         };
                     };
                 };
@@ -241,10 +241,10 @@ module {
 
                 switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = (U.get_now_nanos() / 1_000_000_000) + delayToSet })) {
                     case (#ok(_)) {
-                        log_ok(nodeMem, "update_delay");
+                        log_activity(nodeMem, "update_delay", #Ok);
                     };
                     case (#err(err)) {
-                        log_err(nodeMem, "update_delay", debug_show err);
+                        log_activity(nodeMem, "update_delay", #Err(debug_show err));
                     };
                 };
             };
@@ -270,10 +270,10 @@ module {
 
                     switch (await* neuron.follow({ topic = topic; followee = followeeToSet })) {
                         case (#ok(_)) {
-                            log_ok(nodeMem, "update_followees");
+                            log_activity(nodeMem, "update_followees", #Ok);
                         };
                         case (#err(err)) {
-                            log_err(nodeMem, "update_followees", debug_show err);
+                            log_activity(nodeMem, "update_followees", #Err(debug_show err));
                         };
                     };
                 };
@@ -293,10 +293,10 @@ module {
 
                 switch (await* neuron.startDissolving()) {
                     case (#ok(_)) {
-                        log_ok(nodeMem, "start_dissolving");
+                        log_activity(nodeMem, "start_dissolving", #Ok);
                     };
                     case (#err(err)) {
-                        log_err(nodeMem, "start_dissolving", debug_show err);
+                        log_activity(nodeMem, "start_dissolving", #Err(debug_show err));
                     };
                 };
             };
@@ -309,10 +309,10 @@ module {
 
                 switch (await* neuron.stopDissolving()) {
                     case (#ok(_)) {
-                        log_ok(nodeMem, "stop_dissolving");
+                        log_activity(nodeMem, "stop_dissolving", #Ok);
                     };
                     case (#err(err)) {
-                        log_err(nodeMem, "stop_dissolving", debug_show err);
+                        log_activity(nodeMem, "stop_dissolving", #Err(debug_show err));
                     };
                 };
             };
@@ -332,10 +332,10 @@ module {
 
                 switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(refund.owner, Option.get(refund.subaccount, AI.defaultSubaccount())) |> Blob.toArray(_) }; amount = null })) {
                     case (#ok(_)) {
-                        log_ok(nodeMem, "disburse_neuron");
+                        log_activity(nodeMem, "disburse_neuron", #Ok);
                     };
                     case (#err(err)) {
-                        log_err(nodeMem, "disburse_neuron", debug_show err);
+                        log_activity(nodeMem, "disburse_neuron", #Err(debug_show err));
                     };
                 };
             };
@@ -356,10 +356,10 @@ module {
 
                 switch (await* neuron.spawn({ nonce = ?newNonce; new_controller = null; percentage_to_spawn = null })) {
                     case (#ok(_)) {
-                        log_ok(nodeMem, "spawn_maturity");
+                        log_activity(nodeMem, "spawn_maturity", #Ok);
                     };
                     case (#err(err)) {
-                        log_err(nodeMem, "spawn_maturity", debug_show err);
+                        log_activity(nodeMem, "spawn_maturity", #Err(debug_show err));
                     };
                 };
             };
@@ -382,10 +382,10 @@ module {
 
                     switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(account.owner, Option.get(account.subaccount, AI.defaultSubaccount())) |> Blob.toArray(_) }; amount = null })) {
                         case (#ok(_)) {
-                            log_ok(nodeMem, "claim_maturity");
+                            log_activity(nodeMem, "claim_maturity", #Ok);
                         };
                         case (#err(err)) {
-                            log_err(nodeMem, "claim_maturity", debug_show err);
+                            log_activity(nodeMem, "claim_maturity", #Err(debug_show err));
                         };
                     };
                 };
@@ -409,22 +409,17 @@ module {
             };
         };
 
-        private func log_ok(nodeMem : N.Mem, operation : Text) : () {
+        private func log_activity(nodeMem : N.Mem, operation : Text, result : { #Ok; #Err : Text }) : () {
             let activityLog = Buffer.fromArray<N.Activity>(nodeMem.internals.activity_log);
 
-            activityLog.add(#Ok({ operation = operation; timestamp = U.get_now_nanos() }));
-
-            if (activityLog.size() > ACTIVITY_LOG_LIMIT) {
-                ignore activityLog.remove(0); // remove 1 item from the beginning
+            switch (result) {
+                case (#Ok(())) {
+                    activityLog.add(#Ok({ operation = operation; timestamp = U.get_now_nanos() }));
+                };
+                case (#Err(msg)) {
+                    activityLog.add(#Err({ operation = operation; msg = msg; timestamp = U.get_now_nanos() }));
+                };
             };
-
-            nodeMem.internals.activity_log := Buffer.toArray(activityLog);
-        };
-
-        private func log_err(nodeMem : N.Mem, operation : Text, msg : Text) : () {
-            let activityLog = Buffer.fromArray<N.Activity>(nodeMem.internals.activity_log);
-
-            activityLog.add(#Err({ operation = operation; msg = msg; timestamp = U.get_now_nanos() }));
 
             if (activityLog.size() > ACTIVITY_LOG_LIMIT) {
                 ignore activityLog.remove(0); // remove 1 item from the beginning
