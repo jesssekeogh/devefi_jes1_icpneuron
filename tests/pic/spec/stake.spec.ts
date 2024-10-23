@@ -20,13 +20,7 @@ describe("Stake", () => {
   });
 
   afterAll(async () => {
-    // debug
-    await setup.advanceBlocksAndTime(20);
-    node = await setup.getNode(node.id);
-    console.log(node.custom.nns_neuron.internals.activity_log);
-    console.log(node.custom.nns_neuron.cache)
-    // debug
-    await setup.afterAll()
+    await setup.afterAll();
   });
 
   it("should stake neuron", async () => {
@@ -41,7 +35,7 @@ describe("Stake", () => {
       dissolveDelayToSet
     );
 
-    let oneYearSeconds = BigInt((4 * 365 + 1) * (24 * 60 * 60) / 4);
+    let oneYearSeconds = BigInt(((4 * 365 + 1) * (24 * 60 * 60)) / 4);
     let maxDelay = 8n * oneYearSeconds;
     await setup.modifyNode(node.id, [maxDelay], [], []);
     await setup.advanceBlocksAndTime(3);
@@ -91,12 +85,19 @@ describe("Stake", () => {
     await setup.advanceBlocksAndTime(3);
     node = await setup.getNode(node.id);
 
-    expect(node.custom.nns_neuron.variables).toBeTruthy();
+    expect(node.custom.nns_neuron.variables.update_dissolving).toBeTruthy();
     expect(node.custom.nns_neuron.cache.state[0]).toBe(
       setup.getNeuronStates().dissolving
     );
 
-    // TODO set back to false and expect
+    await setup.modifyNode(node.id, [], [], [false]);
+    await setup.advanceBlocksAndTime(3);
+    node = await setup.getNode(node.id);
+
+    expect(node.custom.nns_neuron.variables.update_dissolving).toBeFalsy();
+    expect(node.custom.nns_neuron.cache.state[0]).toBe(
+      setup.getNeuronStates().locked
+    );
   });
 
   it("should increase stake", async () => {
@@ -119,6 +120,40 @@ describe("Stake", () => {
     );
   });
 
-  // TODO disburse a dissolved neuron
-  // TODO multiple neurons
+  it("should disburse dissolved neuron", async () => {
+    await setup.modifyNode(node.id, [], [], [true]);
+    await setup.advanceBlocksAndTime(3);
+    node = await setup.getNode(node.id);
+
+    expect(node.custom.nns_neuron.cache.state[0]).toBe(
+      setup.getNeuronStates().dissolving
+    );
+
+    await setup.advanceTime(4300000); // 8 years
+    await setup.advanceBlocks(100);
+
+    await setup.advanceBlocksAndTime(10);
+    node = await setup.getNode(node.id);
+
+    expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(0n);
+  });
+
+  it("should re-use empty neuron", async () => {
+    expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(0n);
+    await setup.sendIcp(setup.getNodeSourceAccount(node), amountToStake);
+    await setup.advanceBlocksAndTime(3);
+
+    let oneYearSeconds = BigInt(((4 * 365 + 1) * (24 * 60 * 60)) / 4);
+    let maxDelay = 8n * oneYearSeconds;
+    await setup.modifyNode(node.id, [maxDelay], [], [false]);
+    await setup.advanceBlocksAndTime(3);
+    node = await setup.getNode(node.id);
+
+    expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
+      amountToStake - expectedTransactionFees
+    );
+    expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
+      maxDelay
+    );
+  });
 });
