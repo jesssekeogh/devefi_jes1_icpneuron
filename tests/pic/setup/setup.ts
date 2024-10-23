@@ -202,9 +202,9 @@ export class Setup {
       nns_neuron: {
         init: {
           ledger: ICP_LEDGER_CANISTER_ID,
-          delay_seconds: stakeParams.dissolveDelay,
         },
         variables: {
+          update_delay_seconds: stakeParams.dissolveDelay,
           update_followee: stakeParams.followee,
           update_dissolving: stakeParams.dissolving,
         },
@@ -221,6 +221,7 @@ export class Setup {
 
   public async modifyNode(
     nodeId: number,
+    updateDelaySeconds: [] | [bigint],
     updateFollowee: [] | [bigint],
     updateDissolving: [] | [boolean]
   ) {
@@ -230,6 +231,7 @@ export class Setup {
       [
         {
           nns_neuron: {
+            update_delay_seconds: updateDelaySeconds,
             update_dissolving: updateDissolving,
             update_followee: updateFollowee,
           },
@@ -250,6 +252,7 @@ export class Setup {
     await this.advanceBlocksAndTime(1);
 
     await this.payNodeBill(node);
+
     await this.advanceBlocksAndTime(2);
 
     await this.sendIcp(this.getNodeSourceAccount(node), stakeAmount);
@@ -261,10 +264,11 @@ export class Setup {
 
   public async payNodeBill(node: NodeShared): Promise<void> {
     let billingAccount = node.billing.account;
-    await this.sendIcrc(
+    let res = await this.sendIcrc(
       billingAccount,
       node.billing.min_create_balance * 100n // more than enough
     );
+
   }
 
   public async getNode(nodeId: NodeId): Promise<GetNodeResponse> {
