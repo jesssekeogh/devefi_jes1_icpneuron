@@ -42,6 +42,15 @@ module {
         // Maximum number of activities to keep in the main neuron's activity log
         let ACTIVITY_LOG_LIMIT : Nat = 10;
 
+        // Minimum allowable delay increase, defined as a buffer of two weeks (in seconds)
+        let DELAY_BUFFER_SECONDS : Nat64 = (14 * 24 * 60 * 60);
+
+        // From here: https://github.com/dfinity/ic/blob/master/rs/nervous_system/common/src/lib.rs#L67C15-L67C27
+        let ONE_YEAR_SECONDS : Nat64 = (4 * 365 + 1) * (24 * 60 * 60) / 4;
+
+        // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/src/governance.rs#L164
+        let MAXIMUM_DELAY_SECONDS : Nat64 = 8 * ONE_YEAR_SECONDS;
+
         // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/proto/ic_nns_governance/pb/v1/governance.proto#L41
         let GOVERNANCE_TOPICS : [Int32] = [
             0, // Catch all, except Governance & SNS & Community Fund
@@ -224,7 +233,7 @@ module {
             let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return;
             let delayToSet = nodeMem.variables.update_delay_seconds;
 
-            if (delayToSet > cachedDelay) {
+            if (delayToSet > cachedDelay + DELAY_BUFFER_SECONDS and delayToSet <= MAXIMUM_DELAY_SECONDS) {
                 let neuron = NNS.Neuron({
                     nns_canister_id = icp_governance;
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
