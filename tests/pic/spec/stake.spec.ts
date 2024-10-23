@@ -12,7 +12,7 @@ describe("Stake", () => {
 
   beforeAll(async () => {
     setup = await Setup.beforeAll();
-    node = await setup.stakeNeuron(10_0000_0000n, {
+    node = await setup.stakeNeuron(amountToStake, {
       dissolveDelay: dissolveDelayToSet,
       followee: followeeToSet,
       dissolving: isDissolving,
