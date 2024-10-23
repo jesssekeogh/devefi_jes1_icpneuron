@@ -20,7 +20,13 @@ describe("Stake", () => {
   });
 
   afterAll(async () => {
-    await setup.afterAll();
+    // debug
+    await setup.advanceBlocksAndTime(20);
+    node = await setup.getNode(node.id);
+    console.log(node.custom.nns_neuron.internals.activity_log);
+    console.log(node.custom.nns_neuron.cache)
+    // debug
+    await setup.afterAll()
   });
 
   it("should stake neuron", async () => {
@@ -34,7 +40,23 @@ describe("Stake", () => {
     expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
       dissolveDelayToSet
     );
-    // TODO add a feature to increase?
+
+    let oneYearSeconds = BigInt((4 * 365 + 1) * (24 * 60 * 60) / 4);
+    let maxDelay = 8n * oneYearSeconds;
+    await setup.modifyNode(node.id, [maxDelay], [], []);
+    await setup.advanceBlocksAndTime(3);
+    node = await setup.getNode(node.id);
+    expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
+      maxDelay
+    );
+
+    let failDelay = maxDelay + dissolveDelayToSet;
+    await setup.modifyNode(node.id, [failDelay], [], []);
+    await setup.advanceBlocksAndTime(3);
+    node = await setup.getNode(node.id);
+    expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
+      maxDelay
+    );
   });
 
   it("should update followee", async () => {
