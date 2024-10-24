@@ -34,7 +34,7 @@ module {
         });
 
         // Caches are checked again after this time
-        let TIMEOUT_NANOS : Nat64 = (3 * 60 * 1_000_000_000);
+        let TIMEOUT_NANOS : Nat64 = (6 * 60 * 1_000_000_000);
 
         // 1.06 ICP in e8s
         let MINIMUM_SPAWN : Nat64 = 106_000_000;
