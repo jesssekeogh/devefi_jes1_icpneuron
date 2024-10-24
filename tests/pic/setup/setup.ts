@@ -73,6 +73,7 @@ export class Setup {
     this.ledgerActor = ledgerActor;
 
     // set identitys as me
+    this.nnsActor.setIdentity(this.me)
     this.ledgerActor.setIdentity(this.me);
     this.vectorActor.setIdentity(this.me);
     this.icrcActor.setIdentity(this.me);
@@ -147,6 +148,9 @@ export class Setup {
     await this.pic.tearDown();
   }
 
+  public getMe(): Principal {
+    return this.me.getPrincipal();
+  }
   public getVector(): Actor<NNSVECTOR> {
     return this.vectorActor;
   }
@@ -268,7 +272,6 @@ export class Setup {
       billingAccount,
       node.billing.min_create_balance * 100n // more than enough
     );
-
   }
 
   public async getNode(nodeId: NodeId): Promise<GetNodeResponse> {
