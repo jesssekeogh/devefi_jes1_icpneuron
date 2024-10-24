@@ -30,7 +30,7 @@ describe("Stake", () => {
     );
   });
 
-  it("should set neuron dissolve delay", async () => {
+  it("update dissolve delay", async () => {
     expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
       dissolveDelayToSet
     );
@@ -128,6 +128,8 @@ describe("Stake", () => {
     expect(node.custom.nns_neuron.cache.state[0]).toBe(
       setup.getNeuronStates().dissolving
     );
+
+    expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBeGreaterThan(0n);
 
     await setup.advanceTime(4300000); // 8 years
     await setup.advanceBlocks(100);
