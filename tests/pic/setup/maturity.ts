@@ -4,31 +4,23 @@ import { Actor } from "@hadronous/pic";
 import { createHash, randomBytes } from "node:crypto";
 import { Principal } from "@dfinity/principal";
 import { GOVERNANCE_CANISTER_ID } from "./constants";
+import { Manager } from "./manager";
 
 // helper class to create maturity in neurons
 export class Maturity {
-  private readonly neuronId: bigint;
   private readonly owner: Principal;
   private readonly nnsActor: Actor<GOVERNANCE>;
   private readonly ledgerActor: Actor<LEDGER>;
 
-  constructor(
-    nnsActor: Actor<GOVERNANCE>,
-    ledgerActor: Actor<LEDGER>,
-    owner: Principal
-  ) {
-    this.nnsActor = nnsActor;
-    this.ledgerActor = ledgerActor;
-    this.owner = owner;
+  constructor(manager: Manager) {
+    this.nnsActor = manager.getNNS();
+    this.ledgerActor = manager.getIcpLedger();
+    this.owner = manager.getMe();
   }
 
-  // pass in nns and icp ledger from setup class
-  public static beforeAll(
-    nns: Actor<GOVERNANCE>,
-    ledger: Actor<LEDGER>,
-    owner: Principal
-  ): Maturity {
-    return new Maturity(nns, ledger, owner);
+  // pass in nns and icp ledger from node class
+  public static beforeAll(manager: Manager): Maturity {
+    return new Maturity(manager);
   }
 
   private generateNonce(): bigint {
@@ -128,7 +120,8 @@ export class Maturity {
       id: [{ id: neuronId }],
       command: [
         {
-          MakeProposal: { // TODO test different types of proposals
+          MakeProposal: {
+            // TODO test different types of proposals
             url: "",
             title: ["Oscar"],
             summary: "Golden Labrador Retriever",
@@ -156,5 +149,4 @@ export class Maturity {
     //@ts-ignore
     return result.MakeProposal.proposal_id[0].id;
   }
-
 }
