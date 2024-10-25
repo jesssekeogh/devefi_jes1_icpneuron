@@ -1,9 +1,12 @@
-import { Setup } from "../setup/setup.ts";
+import { Manager } from "../setup/manager.ts";
 import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
 import { Maturity } from "../setup/maturity.ts";
+import { createIdentity } from "@hadronous/pic";
+import { Setup } from "../setup/setup.ts";
 
 describe("Maturity", () => {
   let setup: Setup;
+  let manager: Manager;
   let maturity: Maturity;
   let node: NodeShared;
   let amountToStake: bigint = 10_0000_0000n;
@@ -13,15 +16,15 @@ describe("Maturity", () => {
 
   beforeAll(async () => {
     setup = await Setup.beforeAll();
-    maturity = Maturity.beforeAll(
-      setup.getNNS(),
-      setup.getIcpLedger(),
-      setup.getMe()
-    );
+    let me = createIdentity("superSecretAlicePassword");
+
+    manager = await Manager.beforeAll(setup.getPicInstance(), me);
+
+    maturity = Maturity.beforeAll(manager);
 
     followeeNeuronId = await maturity.createNeuron();
 
-    node = await setup.stakeNeuron(amountToStake, {
+    node = await manager.stakeNeuron(amountToStake, {
       dissolveDelay: dissolveDelayToSet,
       followee: followeeNeuronId,
       dissolving: isDissolving,
@@ -34,35 +37,39 @@ describe("Maturity", () => {
 
   it("should accrue maturity", async () => {
     await maturity.createMotionProposal(followeeNeuronId);
-    await setup.advanceBlocksAndTime(3);
+    await manager.advanceBlocksAndTime(5);
 
-    await setup.advanceTime(20160); // 2 weeks
-    await setup.advanceBlocks(10);
+    await manager.advanceTime(20160); // 2 weeks
+    await manager.advanceBlocks(10);
 
-    node = await setup.getNode(node.id);
+    node = await manager.getNode(node.id);
 
-    expect(node.custom.nns_neuron.cache.maturity_e8s_equivalent[0]).toBeGreaterThan(0n);
+    expect(
+      node.custom.nns_neuron.cache.maturity_e8s_equivalent[0]
+    ).toBeGreaterThan(0n);
   });
 
-    it("should spawn maturity", async () => {
-      await setup.advanceBlocksAndTime(5)
-      node = await setup.getNode(node.id);
+  it("should spawn maturity", async () => {
+    await manager.advanceBlocksAndTime(10);
+    node = await manager.getNode(node.id);
 
-      expect(node.custom.nns_neuron.internals.spawning_neurons.length).toBeGreaterThan(0);
-      expect(node.custom.nns_neuron.internals.local_idx).toBe(1);
-    });
+    expect(
+      node.custom.nns_neuron.internals.spawning_neurons.length
+    ).toBeGreaterThan(0);
+    expect(node.custom.nns_neuron.internals.local_idx).toBe(1);
+  });
 
-    it("should claim maturity", async () => {
-      let oldBalance = await setup.getMyBalances();
-      await setup.advanceTime(10160); // 1 week
-      await setup.advanceBlocks(10);
+  it("should claim maturity", async () => {
+    let oldBalance = await manager.getMyBalances();
+    await manager.advanceTime(10160); // 1 week
+    await manager.advanceBlocks(10);
 
-      await setup.advanceBlocksAndTime(5)
-    
-      node = await setup.getNode(node.id);
-      expect(node.custom.nns_neuron.internals.spawning_neurons.length).toBe(0);
+    await manager.advanceBlocksAndTime(10);
 
-      let newBalance = await setup.getMyBalances();
-      expect(newBalance.icp_tokens).toBeGreaterThan(oldBalance.icp_tokens)
-    });
+    node = await manager.getNode(node.id);
+    expect(node.custom.nns_neuron.internals.spawning_neurons.length).toBe(0);
+
+    let newBalance = await manager.getMyBalances();
+    expect(newBalance.icp_tokens).toBeGreaterThan(oldBalance.icp_tokens);
+  });
 });
