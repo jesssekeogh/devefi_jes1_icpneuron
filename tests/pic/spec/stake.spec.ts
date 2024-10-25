@@ -1,8 +1,11 @@
-import { Setup } from "../setup/setup.ts";
+import { Manager } from "../setup/manager.ts";
 import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
+import { createIdentity } from "@hadronous/pic";
+import { Setup } from "../setup/setup.ts";
 
 describe("Stake", () => {
   let setup: Setup;
+  let manager: Manager;
   let node: NodeShared;
   let amountToStake: bigint = 10_0000_0000n;
   let expectedTransactionFees: bigint = 20_000n;
@@ -12,7 +15,11 @@ describe("Stake", () => {
 
   beforeAll(async () => {
     setup = await Setup.beforeAll();
-    node = await setup.stakeNeuron(amountToStake, {
+    manager = await Manager.beforeAll(
+      setup.getPicInstance(),
+      createIdentity("superSecretAlicePassword")
+    );
+    node = await manager.stakeNeuron(amountToStake, {
       dissolveDelay: dissolveDelayToSet,
       followee: followeeToSet,
       dissolving: isDissolving,
@@ -35,19 +42,19 @@ describe("Stake", () => {
       dissolveDelayToSet
     );
 
-    let oneYearSeconds = BigInt(((4 * 365 + 1) * (24 * 60 * 60)) / 4);
+    let oneYearSeconds = ((4n * 365n + 1n) * (24n * 60n * 60n)) / 4n;
     let maxDelay = 8n * oneYearSeconds;
-    await setup.modifyNode(node.id, [maxDelay], [], []);
-    await setup.advanceBlocksAndTime(3);
-    node = await setup.getNode(node.id);
+    await manager.modifyNode(node.id, [maxDelay], [], []);
+    await manager.advanceBlocksAndTime(3);
+    node = await manager.getNode(node.id);
     expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
       maxDelay
     );
 
     let failDelay = maxDelay + dissolveDelayToSet;
-    await setup.modifyNode(node.id, [failDelay], [], []);
-    await setup.advanceBlocksAndTime(3);
-    node = await setup.getNode(node.id);
+    await manager.modifyNode(node.id, [failDelay], [], []);
+    await manager.advanceBlocksAndTime(3);
+    node = await manager.getNode(node.id);
     expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
       maxDelay
     );
@@ -63,9 +70,9 @@ describe("Stake", () => {
     // modify to a new followee and expect it to change
     let newFollowee: bigint = 8571487073262291504n;
 
-    await setup.modifyNode(node.id, [], [newFollowee], []);
-    await setup.advanceBlocksAndTime(3);
-    node = await setup.getNode(node.id);
+    await manager.modifyNode(node.id, [], [newFollowee], []);
+    await manager.advanceBlocksAndTime(3);
+    node = await manager.getNode(node.id);
 
     expect(node.custom.nns_neuron.variables.update_followee).toBe(newFollowee);
     expect(node.custom.nns_neuron.cache.followees).toHaveLength(3);
@@ -78,25 +85,25 @@ describe("Stake", () => {
   it("should update dissolving", async () => {
     expect(node.custom.nns_neuron.variables.update_dissolving).toBeFalsy();
     expect(node.custom.nns_neuron.cache.state[0]).toBe(
-      setup.getNeuronStates().locked
+      manager.getNeuronStates().locked
     );
 
-    await setup.modifyNode(node.id, [], [], [true]);
-    await setup.advanceBlocksAndTime(3);
-    node = await setup.getNode(node.id);
+    await manager.modifyNode(node.id, [], [], [true]);
+    await manager.advanceBlocksAndTime(3);
+    node = await manager.getNode(node.id);
 
     expect(node.custom.nns_neuron.variables.update_dissolving).toBeTruthy();
     expect(node.custom.nns_neuron.cache.state[0]).toBe(
-      setup.getNeuronStates().dissolving
+      manager.getNeuronStates().dissolving
     );
 
-    await setup.modifyNode(node.id, [], [], [false]);
-    await setup.advanceBlocksAndTime(3);
-    node = await setup.getNode(node.id);
+    await manager.modifyNode(node.id, [], [], [false]);
+    await manager.advanceBlocksAndTime(3);
+    node = await manager.getNode(node.id);
 
     expect(node.custom.nns_neuron.variables.update_dissolving).toBeFalsy();
     expect(node.custom.nns_neuron.cache.state[0]).toBe(
-      setup.getNeuronStates().locked
+      manager.getNeuronStates().locked
     );
   });
 
@@ -106,50 +113,52 @@ describe("Stake", () => {
     );
     let currentStake = amountToStake - expectedTransactionFees;
 
-    let sends = 3;
-    for (let i = 0; i < sends; i++) {
-      await setup.sendIcp(setup.getNodeSourceAccount(node), amountToStake);
-      await setup.advanceBlocksAndTime(1);
+    let sends = 3n;
+    for (let i = 0n; i < sends; i++) {
+      await manager.sendIcp(manager.getNodeSourceAccount(node), amountToStake);
+      await manager.advanceBlocksAndTime(1);
     }
 
-    await setup.advanceBlocksAndTime(3);
-    node = await setup.getNode(node.id);
+    await manager.advanceBlocksAndTime(3);
+    node = await manager.getNode(node.id);
     expect(node.custom.nns_neuron.internals.refresh_idx).toHaveLength(0);
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
-      currentStake + (amountToStake - expectedTransactionFees) * BigInt(sends)
+      currentStake + (amountToStake - expectedTransactionFees) * sends
     );
   });
 
   it("should disburse dissolved neuron", async () => {
-    await setup.modifyNode(node.id, [], [], [true]);
-    await setup.advanceBlocksAndTime(3);
-    node = await setup.getNode(node.id);
+    await manager.modifyNode(node.id, [], [], [true]);
+    await manager.advanceBlocksAndTime(3);
+    node = await manager.getNode(node.id);
 
     expect(node.custom.nns_neuron.cache.state[0]).toBe(
-      setup.getNeuronStates().dissolving
+      manager.getNeuronStates().dissolving
     );
 
-    expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBeGreaterThan(0n);
+    expect(
+      node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]
+    ).toBeGreaterThan(0n);
 
-    await setup.advanceTime(4300000); // 8 years
-    await setup.advanceBlocks(100);
+    await manager.advanceTime(4300000); // 8 years
+    await manager.advanceBlocks(100);
 
-    await setup.advanceBlocksAndTime(10);
-    node = await setup.getNode(node.id);
+    await manager.advanceBlocksAndTime(10);
+    node = await manager.getNode(node.id);
 
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(0n);
   });
 
   it("should re-use empty neuron", async () => {
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(0n);
-    await setup.sendIcp(setup.getNodeSourceAccount(node), amountToStake);
-    await setup.advanceBlocksAndTime(3);
+    await manager.sendIcp(manager.getNodeSourceAccount(node), amountToStake);
+    await manager.advanceBlocksAndTime(3);
 
-    let oneYearSeconds = BigInt(((4 * 365 + 1) * (24 * 60 * 60)) / 4);
+    let oneYearSeconds = ((4n * 365n + 1n) * (24n * 60n * 60n)) / 4n;
     let maxDelay = 8n * oneYearSeconds;
-    await setup.modifyNode(node.id, [maxDelay], [], [false]);
-    await setup.advanceBlocksAndTime(3);
-    node = await setup.getNode(node.id);
+    await manager.modifyNode(node.id, [maxDelay], [], [false]);
+    await manager.advanceBlocksAndTime(3);
+    node = await manager.getNode(node.id);
 
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
       amountToStake - expectedTransactionFees
