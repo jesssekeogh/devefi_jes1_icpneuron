@@ -51,9 +51,6 @@ module {
         // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/src/governance.rs#L164
         let MAXIMUM_DELAY_SECONDS : Nat64 = 8 * ONE_YEAR_SECONDS;
 
-        // From here: https://github.com/dfinity/ic/blob/master/rs/sns/governance/src/neuron.rs#L22
-        let MAX_LIST_NEURON_RESULT : Nat = 100;
-
         // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/proto/ic_nns_governance/pb/v1/governance.proto#L41
         let GOVERNANCE_TOPICS : [Int32] = [
             0, // Catch all, except Governance & SNS & Community Fund
@@ -120,28 +117,11 @@ module {
         };
 
         public func cache_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
-            // Fetch all neuron IDs
-            let neuron_ids = await* nns.getNeuronIds();
-
-            // Process neuron IDs in batches of 100
-            var startIndex : Nat = 0;
-            while (startIndex < neuron_ids.size()) {
-                let remainingNeurons : Nat = neuron_ids.size() - startIndex;
-
-                let current_batch_size = Nat.min(remainingNeurons, MAX_LIST_NEURON_RESULT);
-
-                let batch = Array.subArray(neuron_ids, startIndex, current_batch_size);
-
-                await* process_neuron_batch(batch, nodes);
-
-                startIndex += current_batch_size;
-            };
-        };
-
-        private func process_neuron_batch(neuron_ids : [Nat64], nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
             let { full_neurons; neuron_infos } = await* nns.listNeurons({
-                neuronIds = neuron_ids;
-                readable = false;
+                neuron_ids = [];
+                include_readable = true;
+                include_public = true;
+                include_empty = false; // Don't fetch empty neurons
             });
 
             let neuronInfos = Map.fromIter<Nat64, GovT.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
@@ -352,7 +332,7 @@ module {
                     neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                 });
 
-                switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(refund.owner, Option.get(refund.subaccount, AI.defaultSubaccount())) |> Blob.toArray(_) }; amount = null })) {
+                switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(refund.owner, Option.get(refund.subaccount, AI.defaultSubaccount())) }; amount = null })) {
                     case (#ok(_)) {
                         log_activity(nodeMem, "disburse_neuron", #Ok);
                     };
@@ -402,7 +382,7 @@ module {
 
                     let #ic({ account = ?account }) = destination else continue spawnLoop;
 
-                    switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(account.owner, Option.get(account.subaccount, AI.defaultSubaccount())) |> Blob.toArray(_) }; amount = null })) {
+                    switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(account.owner, Option.get(account.subaccount, AI.defaultSubaccount())) }; amount = null })) {
                         case (#ok(_)) {
                             log_activity(nodeMem, "claim_maturity", #Ok);
                         };
