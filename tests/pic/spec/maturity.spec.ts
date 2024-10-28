@@ -15,9 +15,8 @@ describe("Maturity", () => {
   let followeeNeuronId: bigint;
 
   beforeAll(async () => {
-    setup = await Setup.beforeAll();
     let me = createIdentity("superSecretAlicePassword");
-
+    setup = await Setup.beforeAll();
     manager = await Manager.beforeAll(setup.getPicInstance(), me);
 
     maturity = Maturity.beforeAll(manager);
@@ -37,11 +36,12 @@ describe("Maturity", () => {
 
   it("should accrue maturity", async () => {
     await maturity.createMotionProposal(followeeNeuronId);
-    await manager.advanceBlocksAndTime(5);
+    await manager.advanceBlocksAndTime(1);
 
     await manager.advanceTime(20160); // 2 weeks
     await manager.advanceBlocks(10);
-
+    
+    await manager.advanceBlocksAndTime(1);
     node = await manager.getNode(node.id);
 
     expect(
@@ -50,7 +50,7 @@ describe("Maturity", () => {
   });
 
   it("should spawn maturity", async () => {
-    await manager.advanceBlocksAndTime(10);
+    await manager.advanceBlocksAndTime(5);
     node = await manager.getNode(node.id);
 
     expect(
@@ -64,7 +64,7 @@ describe("Maturity", () => {
     await manager.advanceTime(10160); // 1 week
     await manager.advanceBlocks(10);
 
-    await manager.advanceBlocksAndTime(10);
+    await manager.advanceBlocksAndTime(5);
 
     node = await manager.getNode(node.id);
     expect(node.custom.nns_neuron.internals.spawning_neurons.length).toBe(0);
