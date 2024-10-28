@@ -150,8 +150,8 @@ export class Manager {
 
   public async advanceBlocksAndTime(rounds: number): Promise<void> {
     for (let i = 0; i < rounds; i++) {
-      let mins = 6;
-      let blocks = 6;
+      let mins = 10;
+      let blocks = 10;
       await this.pic.advanceTime(mins * 60 * 1000);
       await this.pic.tick(blocks);
     }

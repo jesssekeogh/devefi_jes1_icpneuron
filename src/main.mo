@@ -61,11 +61,6 @@ shared ({ caller = owner }) actor class NNSVECTOR({
         func() : async () { ignore do ? { await* vector!.async_cycle(nodes) } },
     );
 
-    ignore Timer.recurringTimer<system>(
-        #seconds(60),
-        func() : async () { ignore do ? { await* vector!.cache_cycle(nodes) } },
-    );
-
     public query func icrc55_get_pylon_meta() : async ICRC55.PylonMetaResp {
         nodes.icrc55_get_pylon_meta();
     };
