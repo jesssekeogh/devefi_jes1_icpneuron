@@ -34,7 +34,7 @@ module {
         });
 
         // Caches are checked again after this time
-        let TIMEOUT_NANOS : Nat64 = (6 * 60 * 1_000_000_000);
+        let TIMEOUT_NANOS : Nat64 = (10 * 60 * 1_000_000_000);
 
         // 1.06 ICP in e8s
         let MINIMUM_SPAWN : Nat64 = 106_000_000;
@@ -98,6 +98,7 @@ module {
                     case (#nns_neuron(nodeMem)) {
                         if (not ready(nodeMem)) continue vloop;
                         try {
+                            await* refresh_cache(nodeMem, vid);
                             await* claim_neuron(nodeMem, vid);
                             await* refresh_neuron(nodeMem);
                             await* update_delay(nodeMem);
@@ -116,12 +117,16 @@ module {
             };
         };
 
-        public func cache_cycle(nodes : Node.Node<T.CreateRequest, T.Mem, T.Shared, T.ModifyRequest>) : async* () {
+        public func refresh_cache(nodeMem : N.Mem, vid : Nat32) : async* () {
+            // Use list_neurons to update caches and find empty neurons.
+            // Fetch all neurons owned by the canister to locate the neuron owned by the node and all its spawning neurons.
+            // Possible enhancements include using a separate cache cycle that updates all nodes in one call
+            // and not fetching empty neurons. Tests show that fetching over 10,000 neurons is fine, but performance should be monitored.
             let { full_neurons; neuron_infos } = await* nns.listNeurons({
                 neuron_ids = [];
                 include_readable = true;
                 include_public = true;
-                include_empty = false; // Don't fetch empty neurons
+                include_empty = true;
             });
 
             let neuronInfos = Map.fromIter<Nat64, GovT.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
@@ -134,14 +139,8 @@ module {
                 },
             );
 
-            label vloop for ((vid, vec) in nodes.entries()) {
-                switch (vec.custom) {
-                    case (#nns_neuron(nodeMem)) {
-                        update_neuron_cache(nodeMem, neuronInfos, fullNeurons);
-                        update_spawning_neurons_cache(nodeMem, vid, fullNeurons);
-                    };
-                };
-            };
+            update_neuron_cache(nodeMem, neuronInfos, fullNeurons);
+            update_spawning_neurons_cache(nodeMem, vid, fullNeurons);
         };
 
         private func update_neuron_cache(nodeMem : N.Mem, neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>, fullNeurons : Map.Map<Blob, GovT.Neuron>) : () {
@@ -150,17 +149,19 @@ module {
 
             let neuronSub : Blob = Tools.computeNeuronStakingSubaccountBytes(canister_id, nonce);
 
-            let ?info = Map.get(neuronInfos, Map.n64hash, nid) else return;
-            let ?full = Map.get(fullNeurons, Map.bhash, neuronSub) else return;
-
-            nodeMem.cache.maturity_e8s_equivalent := ?full.maturity_e8s_equivalent;
-            nodeMem.cache.cached_neuron_stake_e8s := ?full.cached_neuron_stake_e8s;
-            nodeMem.cache.created_timestamp_seconds := ?full.created_timestamp_seconds;
-            nodeMem.cache.followees := full.followees;
-            nodeMem.cache.dissolve_delay_seconds := ?info.dissolve_delay_seconds;
-            nodeMem.cache.state := ?info.state;
-            nodeMem.cache.voting_power := ?info.voting_power;
-            nodeMem.cache.age_seconds := ?info.age_seconds;
+            switch (Map.get(neuronInfos, Map.n64hash, nid), Map.get(fullNeurons, Map.bhash, neuronSub)) {
+                case (?info, ?full) {
+                    nodeMem.cache.maturity_e8s_equivalent := ?full.maturity_e8s_equivalent;
+                    nodeMem.cache.cached_neuron_stake_e8s := ?full.cached_neuron_stake_e8s;
+                    nodeMem.cache.created_timestamp_seconds := ?full.created_timestamp_seconds;
+                    nodeMem.cache.followees := full.followees;
+                    nodeMem.cache.dissolve_delay_seconds := ?info.dissolve_delay_seconds;
+                    nodeMem.cache.state := ?info.state;
+                    nodeMem.cache.voting_power := ?info.voting_power;
+                    nodeMem.cache.age_seconds := ?info.age_seconds;
+                };
+                case (_) { return };
+            };
         };
 
         private func update_spawning_neurons_cache(nodeMem : N.Mem, vid : Nat32, fullNeurons : Map.Map<Blob, GovT.Neuron>) : () {

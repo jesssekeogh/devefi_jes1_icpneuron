@@ -14,11 +14,10 @@ describe("Stake", () => {
   let isDissolving: boolean = false;
 
   beforeAll(async () => {
+    let me = createIdentity("superSecretAlicePassword");
     setup = await Setup.beforeAll();
-    manager = await Manager.beforeAll(
-      setup.getPicInstance(),
-      createIdentity("superSecretAlicePassword")
-    );
+    manager = await Manager.beforeAll(setup.getPicInstance(), me);
+
     node = await manager.stakeNeuron(amountToStake, {
       dissolveDelay: dissolveDelayToSet,
       followee: followeeToSet,
