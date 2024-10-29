@@ -9,6 +9,10 @@ export const ICP_LEDGER_CANISTER_ID = Principal.fromText(
   "ryjl3-tyaaa-aaaaa-aaaba-cai"
 );
 
+export const NNS_ROOT_CANISTER_ID = Principal.fromText(
+  "r7inp-6aaaa-aaaaa-aaabq-cai"
+);
+
 export const NNS_STATE_PATH = resolve(
   __dirname,
   "..",

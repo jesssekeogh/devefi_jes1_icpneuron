@@ -27,7 +27,11 @@ import {
   SubnetStateType,
 } from "@hadronous/pic";
 import { Principal } from "@dfinity/principal";
-import { GOVERNANCE_CANISTER_ID, ICP_LEDGER_CANISTER_ID } from "./constants.ts";
+import {
+  GOVERNANCE_CANISTER_ID,
+  ICP_LEDGER_CANISTER_ID,
+  NNS_ROOT_CANISTER_ID,
+} from "./constants.ts";
 import { NNSVector, ICRCLedger } from "./index";
 import { minterIdentity } from "./nns/identity.ts";
 import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
@@ -141,6 +145,34 @@ export class Manager {
 
   public async afterAll(): Promise<void> {
     await this.pic.tearDown();
+  }
+
+  public async stopNnsCanister(): Promise<void> {
+    this.pic.stopCanister({
+      canisterId: GOVERNANCE_CANISTER_ID,
+      sender: NNS_ROOT_CANISTER_ID,
+    });
+  }
+
+  public async stopIcpLedgerCanister(): Promise<void> {
+    this.pic.stopCanister({
+      canisterId: ICP_LEDGER_CANISTER_ID,
+      sender: NNS_ROOT_CANISTER_ID,
+    });
+  }
+
+  public async startNnsCanister(): Promise<void> {
+    this.pic.startCanister({
+      canisterId: GOVERNANCE_CANISTER_ID,
+      sender: NNS_ROOT_CANISTER_ID,
+    });
+  }
+
+  public async startIcpLedgerCanister(): Promise<void> {
+    this.pic.startCanister({
+      canisterId: ICP_LEDGER_CANISTER_ID,
+      sender: NNS_ROOT_CANISTER_ID,
+    });
   }
 
   public getMe(): Principal {
