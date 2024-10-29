@@ -20,11 +20,17 @@ import {
   _SERVICE as LEDGER,
   idlFactory as ledgerIdlFactory,
 } from "./nns/ledger";
-import { Actor, PocketIc, createIdentity } from "@hadronous/pic";
+import {
+  Actor,
+  PocketIc,
+  createIdentity,
+  SubnetStateType,
+} from "@hadronous/pic";
 import { Principal } from "@dfinity/principal";
 import { GOVERNANCE_CANISTER_ID, ICP_LEDGER_CANISTER_ID } from "./constants.ts";
 import { NNSVector, ICRCLedger } from "./index";
 import { minterIdentity } from "./nns/identity.ts";
+import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
 
 interface StakeNeuronParams {
   dissolveDelay: bigint;
@@ -69,10 +75,22 @@ export class Manager {
     this.icrcActor.setIdentity(this.me);
   }
 
-  public static async beforeAll(
-    pic: PocketIc,
-    identity: ReturnType<typeof createIdentity>
-  ): Promise<Manager> {
+  public static async beforeAll(): Promise<Manager> {
+    let pic = await PocketIc.create(process.env.PIC_URL, {
+      nns: {
+        state: {
+          type: SubnetStateType.FromPath,
+          path: NNS_STATE_PATH,
+          subnetId: Principal.fromText(NNS_SUBNET_ID),
+        },
+      },
+    });
+
+    await pic.setTime(new Date().getTime());
+    await pic.tick();
+
+    let identity = createIdentity("superSecretAlicePassword");
+
     // setup ICRC
     let icrcFixture = await ICRCLedger(pic, identity.getPrincipal());
 
@@ -119,6 +137,10 @@ export class Manager {
       govActor,
       ledgerActor
     );
+  }
+
+  public async afterAll(): Promise<void> {
+    await this.pic.tearDown();
   }
 
   public getMe(): Principal {

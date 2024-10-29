@@ -1,46 +1,37 @@
 import { Manager } from "../setup/manager.ts";
 import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
 import { Maturity } from "../setup/maturity.ts";
-import { createIdentity } from "@hadronous/pic";
-import { Setup } from "../setup/setup.ts";
+import { AMOUNT_TO_STAKE, MINIMUM_DISSOLVE_DELAY } from "../setup/constants.ts";
 
 describe("Maturity", () => {
-  let setup: Setup;
   let manager: Manager;
   let maturity: Maturity;
   let node: NodeShared;
-  let amountToStake: bigint = 10_0000_0000n;
-  let dissolveDelayToSet: bigint = 15897600n; // 184 days
-  let isDissolving: boolean = false;
-  let followeeNeuronId: bigint;
+  let maturityFollowee: bigint;
 
   beforeAll(async () => {
-    let me = createIdentity("superSecretAlicePassword");
-    setup = await Setup.beforeAll();
-    manager = await Manager.beforeAll(setup.getPicInstance(), me);
-
+    manager = await Manager.beforeAll();
     maturity = Maturity.beforeAll(manager);
+    maturityFollowee = await maturity.createNeuron();
 
-    followeeNeuronId = await maturity.createNeuron();
-
-    node = await manager.stakeNeuron(amountToStake, {
-      dissolveDelay: dissolveDelayToSet,
-      followee: followeeNeuronId,
-      dissolving: isDissolving,
+    node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
+      dissolveDelay: MINIMUM_DISSOLVE_DELAY,
+      followee: maturityFollowee,
+      dissolving: false,
     });
   });
 
   afterAll(async () => {
-    await setup.afterAll();
+    await manager.afterAll();
   });
 
   it("should accrue maturity", async () => {
-    await maturity.createMotionProposal(followeeNeuronId);
+    await maturity.createMotionProposal(maturityFollowee);
     await manager.advanceBlocksAndTime(1);
 
     await manager.advanceTime(20160); // 2 weeks
     await manager.advanceBlocks(10);
-    
+
     await manager.advanceBlocksAndTime(1);
     node = await manager.getNode(node.id);
 

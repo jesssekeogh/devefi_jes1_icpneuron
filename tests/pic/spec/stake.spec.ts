@@ -1,61 +1,57 @@
 import { Manager } from "../setup/manager.ts";
 import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
-import { createIdentity } from "@hadronous/pic";
-import { Setup } from "../setup/setup.ts";
+import {
+  AMOUNT_TO_STAKE,
+  EXPECTED_TRANSACTION_FEES,
+  MAX_DISSOLVE_DELAY,
+  MINIMUM_DISSOLVE_DELAY,
+  MOCK_FOLLOWEE_TO_SET,
+  MOCK_FOLLOWEE_TO_SET_2,
+} from "../setup/constants.ts";
 
 describe("Stake", () => {
-  let setup: Setup;
   let manager: Manager;
   let node: NodeShared;
-  let amountToStake: bigint = 10_0000_0000n;
-  let expectedTransactionFees: bigint = 20_000n;
-  let dissolveDelayToSet: bigint = 15897600n; // 184 days
-  let followeeToSet: bigint = 6914974521667616512n;
-  let isDissolving: boolean = false;
 
   beforeAll(async () => {
-    let me = createIdentity("superSecretAlicePassword");
-    setup = await Setup.beforeAll();
-    manager = await Manager.beforeAll(setup.getPicInstance(), me);
+    manager = await Manager.beforeAll();
 
-    node = await manager.stakeNeuron(amountToStake, {
-      dissolveDelay: dissolveDelayToSet,
-      followee: followeeToSet,
-      dissolving: isDissolving,
+    node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
+      dissolveDelay: MINIMUM_DISSOLVE_DELAY,
+      followee: MOCK_FOLLOWEE_TO_SET,
+      dissolving: false,
     });
   });
 
   afterAll(async () => {
-    await setup.afterAll();
+    await manager.afterAll();
   });
 
   it("should stake neuron", async () => {
     expect(node.custom.nns_neuron.cache.neuron_id[0]).toBeDefined();
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
-      amountToStake - expectedTransactionFees
+      AMOUNT_TO_STAKE - EXPECTED_TRANSACTION_FEES
     );
   });
 
-  it("update dissolve delay", async () => {
+  it("should update dissolve delay", async () => {
     expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
-      dissolveDelayToSet
+      MINIMUM_DISSOLVE_DELAY
     );
 
-    let oneYearSeconds = ((4n * 365n + 1n) * (24n * 60n * 60n)) / 4n;
-    let maxDelay = 8n * oneYearSeconds;
-    await manager.modifyNode(node.id, [maxDelay], [], []);
+    await manager.modifyNode(node.id, [MAX_DISSOLVE_DELAY], [], []);
     await manager.advanceBlocksAndTime(3);
     node = await manager.getNode(node.id);
     expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
-      maxDelay
+      MAX_DISSOLVE_DELAY
     );
 
-    let failDelay = maxDelay + dissolveDelayToSet;
+    let failDelay = MAX_DISSOLVE_DELAY + MINIMUM_DISSOLVE_DELAY;
     await manager.modifyNode(node.id, [failDelay], [], []);
     await manager.advanceBlocksAndTime(3);
     node = await manager.getNode(node.id);
     expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
-      maxDelay
+      MAX_DISSOLVE_DELAY
     );
   });
 
@@ -63,21 +59,22 @@ describe("Stake", () => {
     expect(node.custom.nns_neuron.cache.followees).toHaveLength(3);
 
     for (let followee of node.custom.nns_neuron.cache.followees) {
-      expect(followee[1].followees[0].id).toBe(followeeToSet);
+      expect(followee[1].followees[0].id).toBe(MOCK_FOLLOWEE_TO_SET);
     }
 
     // modify to a new followee and expect it to change
-    let newFollowee: bigint = 8571487073262291504n;
 
-    await manager.modifyNode(node.id, [], [newFollowee], []);
+    await manager.modifyNode(node.id, [], [MOCK_FOLLOWEE_TO_SET_2], []);
     await manager.advanceBlocksAndTime(3);
     node = await manager.getNode(node.id);
 
-    expect(node.custom.nns_neuron.variables.update_followee).toBe(newFollowee);
+    expect(node.custom.nns_neuron.variables.update_followee).toBe(
+      MOCK_FOLLOWEE_TO_SET_2
+    );
     expect(node.custom.nns_neuron.cache.followees).toHaveLength(3);
 
     for (let followee of node.custom.nns_neuron.cache.followees) {
-      expect(followee[1].followees[0].id).toBe(newFollowee);
+      expect(followee[1].followees[0].id).toBe(MOCK_FOLLOWEE_TO_SET_2);
     }
   });
 
@@ -108,13 +105,16 @@ describe("Stake", () => {
 
   it("should increase stake", async () => {
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
-      amountToStake - expectedTransactionFees
+      AMOUNT_TO_STAKE - EXPECTED_TRANSACTION_FEES
     );
-    let currentStake = amountToStake - expectedTransactionFees;
+    let currentStake = AMOUNT_TO_STAKE - EXPECTED_TRANSACTION_FEES;
 
     let sends = 3n;
     for (let i = 0n; i < sends; i++) {
-      await manager.sendIcp(manager.getNodeSourceAccount(node), amountToStake);
+      await manager.sendIcp(
+        manager.getNodeSourceAccount(node),
+        AMOUNT_TO_STAKE
+      );
       await manager.advanceBlocksAndTime(1);
     }
 
@@ -122,7 +122,7 @@ describe("Stake", () => {
     node = await manager.getNode(node.id);
     expect(node.custom.nns_neuron.internals.refresh_idx).toHaveLength(0);
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
-      currentStake + (amountToStake - expectedTransactionFees) * sends
+      currentStake + (AMOUNT_TO_STAKE - EXPECTED_TRANSACTION_FEES) * sends
     );
   });
 
@@ -150,20 +150,18 @@ describe("Stake", () => {
 
   it("should re-use empty neuron", async () => {
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(0n);
-    await manager.sendIcp(manager.getNodeSourceAccount(node), amountToStake);
+    await manager.sendIcp(manager.getNodeSourceAccount(node), AMOUNT_TO_STAKE);
     await manager.advanceBlocksAndTime(3);
 
-    let oneYearSeconds = ((4n * 365n + 1n) * (24n * 60n * 60n)) / 4n;
-    let maxDelay = 8n * oneYearSeconds;
-    await manager.modifyNode(node.id, [maxDelay], [], [false]);
+    await manager.modifyNode(node.id, [MAX_DISSOLVE_DELAY], [], [false]);
     await manager.advanceBlocksAndTime(3);
     node = await manager.getNode(node.id);
 
     expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
-      amountToStake - expectedTransactionFees
+      AMOUNT_TO_STAKE - EXPECTED_TRANSACTION_FEES
     );
     expect(node.custom.nns_neuron.cache.dissolve_delay_seconds[0]).toBe(
-      maxDelay
+      MAX_DISSOLVE_DELAY
     );
   });
 });
