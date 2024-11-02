@@ -1,7 +1,7 @@
 {
   "canisters": {
     "nnsvector": {
-      "main": "src/main.mo",
+      "main": "tests/pylon/main.mo",
       "type": "motoko",
       "declarations": {
         "node_compatibility": true,

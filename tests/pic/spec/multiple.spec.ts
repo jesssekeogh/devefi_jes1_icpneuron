@@ -40,8 +40,8 @@ describe("Multiple", () => {
 
   it("should stake multiple neurons", async () => {
     for (let node of nodes) {
-      expect(node.custom.nns_neuron.cache.neuron_id[0]).toBeDefined();
-      expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
+      expect(node.custom[0].nns.cache.neuron_id[0]).toBeDefined();
+      expect(node.custom[0].nns.cache.cached_neuron_stake_e8s[0]).toBe(
         AMOUNT_TO_STAKE - EXPECTED_TRANSACTION_FEES
       );
     }
@@ -57,12 +57,12 @@ describe("Multiple", () => {
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
-      expect(node.custom.nns_neuron.variables.update_followee).toBe(
+      expect(node.custom[0].nns.variables.update_followee).toBe(
         maturityFollowee
       );
-      expect(node.custom.nns_neuron.cache.followees).toHaveLength(3);
+      expect(node.custom[0].nns.cache.followees).toHaveLength(3);
 
-      for (let followee of node.custom.nns_neuron.cache.followees) {
+      for (let followee of node.custom[0].nns.cache.followees) {
         expect(followee[1].followees[0].id).toBe(maturityFollowee);
       }
     }
@@ -86,8 +86,8 @@ describe("Multiple", () => {
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
-      expect(node.custom.nns_neuron.internals.refresh_idx).toHaveLength(0);
-      expect(node.custom.nns_neuron.cache.cached_neuron_stake_e8s[0]).toBe(
+      expect(node.custom[0].nns.internals.refresh_idx).toHaveLength(0);
+      expect(node.custom[0].nns.cache.cached_neuron_stake_e8s[0]).toBe(
         currentStake + (AMOUNT_TO_STAKE - EXPECTED_TRANSACTION_FEES) * sends
       );
     }
@@ -102,9 +102,9 @@ describe("Multiple", () => {
     for (let node of nodes) {
       node = await manager.getNode(node.id);
       expect(
-        node.custom.nns_neuron.internals.spawning_neurons.length
+        node.custom[0].nns.internals.spawning_neurons.length
       ).toBeGreaterThan(0);
-      expect(node.custom.nns_neuron.internals.local_idx).toBe(1);
+      expect(node.custom[0].nns.internals.local_idx).toBe(1);
     }
   });
 
@@ -118,7 +118,7 @@ describe("Multiple", () => {
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
-      expect(node.custom.nns_neuron.internals.spawning_neurons.length).toBe(0);
+      expect(node.custom[0].nns.internals.spawning_neurons.length).toBe(0);
     }
 
     let newBalance = await manager.getMyBalances();

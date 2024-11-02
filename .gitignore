@@ -27,6 +27,5 @@ new_canister_ids.json
 .mops
 canister.sh
 upgrade.sh
-init.did
 tests/nns_state/
 tests/pic/nns_state
