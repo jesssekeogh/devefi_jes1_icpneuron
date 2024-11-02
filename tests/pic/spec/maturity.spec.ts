@@ -36,7 +36,7 @@ describe("Maturity", () => {
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom.nns_neuron.cache.maturity_e8s_equivalent[0]
+      node.custom[0].nns.cache.maturity_e8s_equivalent[0]
     ).toBeGreaterThan(0n);
   });
 
@@ -45,9 +45,9 @@ describe("Maturity", () => {
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom.nns_neuron.internals.spawning_neurons.length
+      node.custom[0].nns.internals.spawning_neurons.length
     ).toBeGreaterThan(0);
-    expect(node.custom.nns_neuron.internals.local_idx).toBe(1);
+    expect(node.custom[0].nns.internals.local_idx).toBe(1);
   });
 
   it("should claim maturity", async () => {
@@ -58,7 +58,7 @@ describe("Maturity", () => {
     await manager.advanceBlocksAndTime(5);
 
     node = await manager.getNode(node.id);
-    expect(node.custom.nns_neuron.internals.spawning_neurons.length).toBe(0);
+    expect(node.custom[0].nns.internals.spawning_neurons.length).toBe(0);
 
     let newBalance = await manager.getMyBalances();
     expect(newBalance.icp_tokens).toBeGreaterThan(oldBalance.icp_tokens);
@@ -75,9 +75,9 @@ describe("Maturity", () => {
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom.nns_neuron.internals.spawning_neurons.length
+      node.custom[0].nns.internals.spawning_neurons.length
     ).toBeGreaterThan(0);
-    expect(node.custom.nns_neuron.internals.local_idx).toBe(2);
+    expect(node.custom[0].nns.internals.local_idx).toBe(2);
 
     let oldBalance = await manager.getMyBalances();
     await manager.advanceTime(10160); // 1 week
@@ -85,7 +85,7 @@ describe("Maturity", () => {
 
     await manager.advanceBlocksAndTime(5);
     node = await manager.getNode(node.id);
-    expect(node.custom.nns_neuron.internals.spawning_neurons.length).toBe(0);
+    expect(node.custom[0].nns.internals.spawning_neurons.length).toBe(0);
 
     let newBalance = await manager.getMyBalances();
     expect(newBalance.icp_tokens).toBeGreaterThan(oldBalance.icp_tokens);

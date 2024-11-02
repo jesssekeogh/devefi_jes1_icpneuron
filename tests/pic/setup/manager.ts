@@ -2,10 +2,12 @@ import {
   _SERVICE as NNSVECTOR,
   CreateRequest,
   ModifyNodeRequest,
-  NodeRequest,
+  ModifyRequest,
+  CommonCreateRequest,
   NodeShared,
   LocalNodeId as NodeId,
   GetNodeResponse,
+  BatchCommandResponse,
 } from "../declarations/nnsvector/nnsvector.did.js";
 import {
   _SERVICE as ICRCLEDGER,
@@ -99,12 +101,7 @@ export class Manager {
     let icrcFixture = await ICRCLedger(pic, identity.getPrincipal());
 
     // setup vector
-    let vectorFixture = await NNSVector(
-      pic,
-      GOVERNANCE_CANISTER_ID,
-      ICP_LEDGER_CANISTER_ID,
-      icrcFixture.canisterId
-    );
+    let vectorFixture = await NNSVector(pic);
 
     // setup nns
     let govActor = pic.createActor<GOVERNANCE>(
@@ -129,9 +126,6 @@ export class Manager {
       memo: [],
       created_at_time: [],
     });
-
-    // start pylon
-    await vectorFixture.actor.start();
 
     return new Manager(
       pic,
@@ -212,28 +206,22 @@ export class Manager {
   }
 
   public async createNode(stakeParams: StakeNeuronParams): Promise<NodeShared> {
-    let req: NodeRequest = {
-      controllers: [this.me.getPrincipal()],
+    let req: CommonCreateRequest = {
+      controllers: [{ owner: this.me.getPrincipal(), subaccount: [] }],
       destinations: [
-        {
-          ic: {
-            name: "default account",
-            ledger: ICP_LEDGER_CANISTER_ID,
-            account: [{ owner: this.me.getPrincipal(), subaccount: [] }],
-          },
-        },
+        [{ ic: { owner: this.me.getPrincipal(), subaccount: [] } }],
       ],
       refund: { owner: this.me.getPrincipal(), subaccount: [] },
+      ledgers: [{ ic: ICP_LEDGER_CANISTER_ID }],
       sources: [],
       extractors: [],
       affiliate: [],
+      temporary: true,
+      temp_id: 0,
     };
 
     let creq: CreateRequest = {
-      nns_neuron: {
-        init: {
-          ledger: ICP_LEDGER_CANISTER_ID,
-        },
+      nns: {
         variables: {
           update_delay_seconds: stakeParams.dissolveDelay,
           update_followee: stakeParams.followee,
@@ -242,12 +230,21 @@ export class Manager {
       },
     };
 
-    let resp = await this.vectorActor.icrc55_command([
-      { create_node: [req, creq] },
-    ]);
+    let resp = await this.vectorActor.icrc55_command({
+      expire_at: [],
+      request_id: [],
+      controller: { owner: this.me.getPrincipal(), subaccount: [] },
+      signature: [],
+      commands: [{ create_node: [req, creq] }],
+    });
 
     //@ts-ignore
-    return resp[0].create_node.ok;
+    if (resp.ok.commands[0].create_node.err) {
+      //@ts-ignore
+      throw new Error(resp.ok.commands[0].create_node.err);
+    }
+    //@ts-ignore
+    return resp.ok.commands[0].create_node.ok;
   }
 
   public async modifyNode(
@@ -255,24 +252,45 @@ export class Manager {
     updateDelaySeconds: [] | [bigint],
     updateFollowee: [] | [bigint],
     updateDissolving: [] | [boolean]
-  ) {
-    let mod: ModifyNodeRequest = [
+  ): Promise<BatchCommandResponse> {
+    let modCustomReq: ModifyRequest = {
+      nns: {
+        update_delay_seconds: updateDelaySeconds,
+        update_dissolving: updateDissolving,
+        update_followee: updateFollowee,
+      },
+    };
+
+    let modReq: ModifyNodeRequest = [
       nodeId,
-      [],
       [
         {
-          nns_neuron: {
-            update_delay_seconds: updateDelaySeconds,
-            update_dissolving: updateDissolving,
-            update_followee: updateFollowee,
-          },
+          destinations: [],
+          refund: [],
+          sources: [],
+          extractors: [],
+          controllers: [[{ owner: this.me.getPrincipal(), subaccount: [] }]],
+          active: [],
         },
       ],
+      [modCustomReq],
     ];
 
-    let resp = await this.vectorActor.icrc55_command([{ modify_node: mod }]);
+    let resp = await this.vectorActor.icrc55_command({
+      expire_at: [],
+      request_id: [],
+      controller: { owner: this.me.getPrincipal(), subaccount: [] },
+      signature: [],
+      commands: [{ modify_node: modReq }],
+    });
+
     //@ts-ignore
-    return resp[0].modify_node.ok;
+    if (resp.ok.commands[0].modify_node.err) {
+      //@ts-ignore
+      throw new Error(resp.ok.commands[0].modify_node.err);
+    }
+    //@ts-ignore
+    return resp.ok.commands[0].modify_node.ok;
   }
 
   public async stakeNeuron(
@@ -287,7 +305,7 @@ export class Manager {
     await this.advanceBlocksAndTime(2);
 
     await this.sendIcp(this.getNodeSourceAccount(node), stakeAmount);
-    await this.advanceBlocksAndTime(5);
+    await this.advanceBlocksAndTime(8);
 
     let refreshedNode = await this.getNode(node.id);
     return refreshedNode;
@@ -295,9 +313,9 @@ export class Manager {
 
   public async payNodeBill(node: NodeShared): Promise<void> {
     let billingAccount = node.billing.account;
-    let res = await this.sendIcrc(
+    await this.sendIcrc(
       billingAccount,
-      node.billing.min_create_balance * 100n // more than enough
+      100_0000_0000n // more than enough
     );
   }
 
@@ -381,7 +399,7 @@ export class Manager {
       throw new Error("Invalid node or no sources found");
     }
 
-    let endpoint = node.destinations[0];
+    let endpoint = node.destinations[0].endpoint;
 
     if ("ic" in endpoint && endpoint.ic.account.length > 0) {
       return endpoint.ic.account[0];
