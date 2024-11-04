@@ -51,7 +51,7 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
     let icp_ledger = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
 
     let billing : ICRC55.BillingPylon = {
-        ledger = test_icrc; // TODO remove and use real: f54if-eqaaa-aaaaq-aacea-cai
+        ledger = test_icrc;
         min_create_balance = 3000000;
         operation_cost = 1000;
         freezing_threshold_days = 10;
@@ -99,40 +99,18 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         vmod;
     });
 
-    private func proc() {
-        label vloop for ((vid, vec) in core.entries()) {
-            if (not vec.active) continue vloop;
-            if (not core.hasDestination(vec, 0)) continue vloop;
-            switch (vec.module_id) {
-                case ("nns") { vec_nns.run(vid, vec) };
-                case (_) { continue vloop };
-            };
-        };
-    };
+    private func proc() { vec_nns.run() };
 
-    private func async_proc() : async* () {
-        label vloop for ((vid, vec) in core.entries()) {
-            if (not vec.active) continue vloop;
-            if (not core.hasDestination(vec, 0)) continue vloop;
-            switch (vec.module_id) {
-                case ("nns") { await* vec_nns.runAsync(vid, vec) };
-                case (_) { continue vloop };
-            };
-        };
-    };
+    private func async_proc() : async* () { await* vec_nns.runAsync() };
 
     ignore Timer.recurringTimer<system>(
         #seconds 2,
-        func() : async () {
-            core.heartbeat(proc);
-        },
+        func() : async () { core.heartbeat(proc) },
     );
 
     ignore Timer.recurringTimer<system>(
         #seconds 2,
-        func() : async () {
-            await* async_proc();
-        },
+        func() : async () { await* async_proc() },
     );
 
     // ICRC-55
