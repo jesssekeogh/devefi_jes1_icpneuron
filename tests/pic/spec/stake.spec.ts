@@ -155,7 +155,7 @@ describe("Stake", () => {
     await manager.advanceBlocksAndTime(3);
 
     await manager.modifyNode(node.id, [MAX_DISSOLVE_DELAY], [], [false]);
-    await manager.advanceBlocksAndTime(3);
+    await manager.advanceBlocksAndTime(5);
     node = await manager.getNode(node.id);
 
     expect(node.custom[0].nns.cache.cached_neuron_stake_e8s[0]).toBe(

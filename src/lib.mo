@@ -227,13 +227,18 @@ module {
                     refresh_idx = t.internals.refresh_idx;
                     spawning_neurons = Array.map(
                         t.internals.spawning_neurons,
-                        func(neuron : Ver1.SpawningNeuronCache) : I.SharedSpawningNeuronCache {
-
+                        func(neuron : Ver1.NeuronCache) : I.SharedNeuronCache {
                             {
+                                neuron_id = neuron.neuron_id;
                                 nonce = neuron.nonce;
                                 maturity_e8s_equivalent = neuron.maturity_e8s_equivalent;
                                 cached_neuron_stake_e8s = neuron.cached_neuron_stake_e8s;
                                 created_timestamp_seconds = neuron.created_timestamp_seconds;
+                                followees = neuron.followees;
+                                dissolve_delay_seconds = neuron.dissolve_delay_seconds;
+                                state = neuron.state;
+                                voting_power = neuron.voting_power;
+                                age_seconds = neuron.age_seconds;
                             };
                         },
                     );
@@ -279,15 +284,13 @@ module {
         });
 
         public func refresh_cache(nodeMem : Ver1.NodeMem, vid : Nat32) : async* () {
-            // Use list_neurons to update caches and find empty neurons.
-            // Fetch all neurons owned by the canister to locate the neuron owned by the node and all its spawning neurons.
-            // Possible enhancements include using a separate cache cycle that updates all nodes in one call
-            // and not fetching empty neurons. Tests show that fetching over 10,000 neurons is fine, but performance should be monitored.
+            let ?nid = nodeMem.cache.neuron_id else return;
+
             let { full_neurons; neuron_infos } = await* nns.listNeurons({
-                neuron_ids = [];
+                neuron_ids = [nid]; // always fetch the main neuron
                 include_readable = true;
                 include_public = true;
-                include_empty = true;
+                include_empty = true; // TODO set to false in production
             });
 
             let neuronInfos = Map.fromIter<Nat64, GovT.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
@@ -301,10 +304,14 @@ module {
             );
 
             update_neuron_cache(nodeMem, neuronInfos, fullNeurons);
-            update_spawning_neurons_cache(nodeMem, vid, fullNeurons);
+            update_spawning_neurons_cache(nodeMem, vid, neuronInfos, fullNeurons);
         };
 
-        private func update_neuron_cache(nodeMem : Ver1.NodeMem, neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>, fullNeurons : Map.Map<Blob, GovT.Neuron>) : () {
+        private func update_neuron_cache(
+            nodeMem : Ver1.NodeMem,
+            neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>,
+            fullNeurons : Map.Map<Blob, GovT.Neuron>,
+        ) : () {
             let ?nid = nodeMem.cache.neuron_id else return;
             let ?nonce = nodeMem.cache.nonce else return;
 
@@ -325,8 +332,13 @@ module {
             };
         };
 
-        private func update_spawning_neurons_cache(nodeMem : Ver1.NodeMem, vid : Nat32, fullNeurons : Map.Map<Blob, GovT.Neuron>) : () {
-            let spawningNeurons = Vector.Vector<Ver1.SpawningNeuronCache>();
+        private func update_spawning_neurons_cache(
+            nodeMem : Ver1.NodeMem,
+            vid : Nat32,
+            neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>,
+            fullNeurons : Map.Map<Blob, GovT.Neuron>,
+        ) : () {
+            let spawningNeurons = Vector.Vector<Ver1.NeuronCache>();
 
             // finds neurons that this vector owner has created and adds them to the cache
             // start at 1, 0 is reserved for the vectors main neuron
@@ -334,19 +346,27 @@ module {
             label idxLoop while (idx <= nodeMem.internals.local_idx) {
                 let spawningNonce : Nat64 = get_neuron_nonce(vid, idx);
                 let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(dvf.me(), spawningNonce);
+
                 let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else continue idxLoop;
+                let ?nid = full.id else continue idxLoop;
+                let ?info = Map.get(neuronInfos, Map.n64hash, nid.id) else continue idxLoop;
 
                 // adds spawning neurons too, a possible memory adjustment could be to just add spawned neurons,
                 // it is nice to show the vector owner the neurons that are spawning though
                 if (full.cached_neuron_stake_e8s > 0 or full.maturity_e8s_equivalent > 0) {
                     spawningNeurons.add({
-                        var nonce = spawningNonce;
-                        var maturity_e8s_equivalent = full.maturity_e8s_equivalent;
-                        var cached_neuron_stake_e8s = full.cached_neuron_stake_e8s;
-                        var created_timestamp_seconds = full.created_timestamp_seconds;
+                        var neuron_id = ?nid.id;
+                        var nonce = ?spawningNonce;
+                        var maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
+                        var cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
+                        var created_timestamp_seconds = ?full.created_timestamp_seconds;
+                        var followees = full.followees;
+                        var dissolve_delay_seconds = ?info.dissolve_delay_seconds;
+                        var state = ?info.state;
+                        var voting_power = ?info.voting_power;
+                        var age_seconds = ?info.age_seconds;
                     });
                 };
-
                 idx += 1;
             };
 
@@ -531,13 +551,17 @@ module {
 
         private func claim_maturity(nodeMem : Ver1.NodeMem, destination : Core.EndpointOptStored) : async* () {
             label spawnLoop for (spawningNeuron in nodeMem.internals.spawning_neurons.vals()) {
+                let ?cachedStake = spawningNeuron.cached_neuron_stake_e8s else continue spawnLoop;
+
                 // Once a neuron is spawned, the maturity is converted into staked ICP
-                if (spawningNeuron.cached_neuron_stake_e8s > 0) {
+                if (cachedStake > 0) {
+                    let ?nonce = spawningNeuron.nonce else continue spawnLoop;
+
                     let neuron = NNS.Neuron({
                         nns_canister_id = NNS_CANISTER_ID;
                         neuron_id_or_subaccount = #Subaccount(
                             Blob.toArray(
-                                Tools.computeNeuronStakingSubaccountBytes(dvf.me(), spawningNeuron.nonce)
+                                Tools.computeNeuronStakingSubaccountBytes(dvf.me(), nonce)
                             )
                         );
                     });
