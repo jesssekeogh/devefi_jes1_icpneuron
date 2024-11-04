@@ -92,62 +92,81 @@ module {
                     "Neuron"
                 ];
                 billing = {
-                    cost_per_day = 10_0000; // TODO change
-                    transaction_fee = #none;
+                    cost_per_day = 0;
+                    transaction_fee = #none; // TODO set
                 };
                 sources = sources(0);
                 destinations = destinations(0);
                 author_account = {
-                    owner = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"); // TODO change
+                    owner = Principal.fromText(
+                        "jv4ws-fbili-a35rv-xd7a5-xwvxw-trink-oluun-g7bcp-oq5f6-35cba-vqe"
+                    );
                     subaccount = null;
                 };
             };
         };
 
-        public func run(id : T.NodeId, vec : T.NodeCoreMem) : () {
-            let ?nodeMem = Map.get(mem.main, Map.n32hash, id) else return;
-            let ?source = core.getSource(id, vec, 0) else return;
-
-            let bal = core.Source.balance(source);
-            let fee = core.Source.fee(source);
-
-            if (bal <= fee) return;
-
-            let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(dvf.me(), get_neuron_nonce(id, 0));
-
-            // TODO enforce a minimum
-
-            let #ok(txId) = core.Source.send(source, #external_account({ owner = NNS_CANISTER_ID; subaccount = ?neuronSubaccount }), bal) else return;
-            // if a neuron exists, we refresh
-            if (Option.isSome(nodeMem.cache.neuron_id)) {
-                let txs = Vector.fromArray<Nat64>(nodeMem.internals.refresh_idx);
-                txs.add(txId);
-                nodeMem.internals.refresh_idx := Vector.toArray(txs);
+        public func run() : () {
+            label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
+                let ?vec = core.getNodeById(vid) else continue vec_loop;
+                if (not vec.active) continue vec_loop;
+                Run.single(vid, vec, nodeMem);
             };
         };
 
-        public func runAsync(id : T.NodeId, vec : T.NodeCoreMem) : async* () {
-            let ?nodeMem = Map.get(mem.main, Map.n32hash, id) else return;
-
-            if (not ready(nodeMem)) return;
-            try {
-                await* refresh_cache(nodeMem, id);
-                await* claim_neuron(nodeMem, id);
-                await* refresh_neuron(nodeMem);
-                await* update_delay(nodeMem);
-                await* update_followees(nodeMem);
-                await* update_dissolving(nodeMem);
-                await* disburse_neuron(nodeMem, vec.refund);
-                await* spawn_maturity(nodeMem, id);
-                await* claim_maturity(nodeMem, vec.destinations[0]);
-            } catch (err) {
-                log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
-            } finally {
-                nodeMem.internals.updating := #Done(U.now());
+        public func runAsync() : async* () {
+            label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
+                let ?vec = core.getNodeById(vid) else continue vec_loop;
+                if (not vec.active) continue vec_loop;
+                await* RunAsync.single(vid, vec, nodeMem);
             };
         };
 
-        public func create(id : T.NodeId, t : I.CreateRequest) : T.Create {
+        module Run {
+            public func single(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : () {
+                let ?source = core.getSource(vid, vec, 0) else return;
+
+                let bal = core.Source.balance(source);
+                let fee = core.Source.fee(source);
+
+                if (bal <= fee) return;
+
+                let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(dvf.me(), get_neuron_nonce(vid, 0));
+
+                // TODO enforce a minimum of 20 ICP
+
+                let #ok(txId) = core.Source.send(source, #external_account({ owner = NNS_CANISTER_ID; subaccount = ?neuronSubaccount }), bal) else return;
+                // if a neuron exists, we refresh
+                if (Option.isSome(nodeMem.cache.neuron_id)) {
+                    let txs = Vector.fromArray<Nat64>(nodeMem.internals.refresh_idx);
+                    txs.add(txId);
+                    nodeMem.internals.refresh_idx := Vector.toArray(txs);
+                };
+            };
+        };
+
+        module RunAsync {
+            public func single(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : async* () {
+                if (not ready(nodeMem)) return;
+                try {
+                    await* refresh_cache(nodeMem, vid);
+                    await* claim_neuron(nodeMem, vid);
+                    await* refresh_neuron(nodeMem);
+                    await* update_delay(nodeMem);
+                    await* update_followees(nodeMem);
+                    await* update_dissolving(nodeMem);
+                    await* disburse_neuron(nodeMem, vec.refund);
+                    await* spawn_maturity(nodeMem, vid);
+                    await* claim_maturity(nodeMem, vec.destinations[0]);
+                } catch (err) {
+                    log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
+                } finally {
+                    nodeMem.internals.updating := #Done(U.now());
+                };
+            };
+        };
+
+        public func create(id : T.NodeId, req : T.CommonCreateRequest, t : I.CreateRequest) : T.Create {
             let obj : M.NodeMem = {
                 variables = {
                     var update_delay_seconds = t.variables.update_delay_seconds;
@@ -178,9 +197,10 @@ module {
             #ok(ID);
         };
 
-        public func delete(_id : T.NodeId) : () {
-            // Not allowed:
+        public func delete(_id : T.NodeId) : T.Delete {
+            // TODO only allow if node has no neuron, or it's neuron is empty
             // ignore Map.remove(mem.main, Map.n32hash, id);
+            #ok();
         };
 
         public func modify(id : T.NodeId, m : I.ModifyRequest) : T.Modify {
@@ -192,7 +212,7 @@ module {
             #ok();
         };
 
-        public func get(id : T.NodeId) : T.Get<I.Shared> {
+        public func get(id : T.NodeId, vec : T.NodeCoreMem) : T.Get<I.Shared> {
             let ?t = Map.get(mem.main, Map.n32hash, id) else return #err("Not found");
 
             #ok {

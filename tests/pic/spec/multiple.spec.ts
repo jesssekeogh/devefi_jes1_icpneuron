@@ -82,7 +82,7 @@ describe("Multiple", () => {
       }
     }
 
-    await manager.advanceBlocksAndTime(3);
+    await manager.advanceBlocksAndTime(5);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);

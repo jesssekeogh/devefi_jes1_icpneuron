@@ -24,10 +24,10 @@ module {
         }
     ) {
 
-        public func get(mid : Core.ModuleId, id : Core.NodeId) : Result.Result<Shared, Text> {
+        public func get(mid : Core.ModuleId, id : Core.NodeId, vec : Core.NodeMem) : Result.Result<Shared, Text> {
 
             if (mid == NNSVector.ID) {
-                switch (m.vec_nns.get(id)) {
+                switch (m.vec_nns.get(id, vec)) {
                     case (#ok(x)) return #ok(#nns(x));
                     case (#err(x)) return #err(x);
                 };
@@ -53,10 +53,10 @@ module {
             Debug.trap("Unknown variant");
         };
 
-        public func create(id : Core.NodeId, req : CreateRequest) : Result.Result<Core.ModuleId, Text> {
+        public func create(id : Core.NodeId, creq : Core.CommonCreateRequest, req : CreateRequest) : Result.Result<Core.ModuleId, Text> {
 
             switch (req) {
-                case (#nns(t)) return m.vec_nns.create(id, t);
+                case (#nns(t)) return m.vec_nns.create(id, creq, t);
             };
             #err("Unknown variant or mismatch");
         };
@@ -68,7 +68,7 @@ module {
             #err("Unknown variant or mismatch");
         };
 
-        public func delete(mid : Core.ModuleId, id : Core.NodeId) : () {
+        public func delete(mid : Core.ModuleId, id : Core.NodeId) : Result.Result<(), Text> {
             if (mid == NNSVector.ID) return m.vec_nns.delete(id);
             Debug.trap("Unknown variant");
         };
