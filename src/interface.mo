@@ -26,7 +26,7 @@ module {
             updating : Updating;
             local_idx : Nat32;
             refresh_idx : [Nat64];
-            spawning_neurons : [SharedSpawningNeuronCache];
+            spawning_neurons : [SharedNeuronCache];
             activity_log : [Activity];
         };
         cache : SharedNeuronCache;
@@ -37,13 +37,6 @@ module {
     public type Activity = {
         #Ok : { operation : Text; timestamp : Nat64 };
         #Err : { operation : Text; msg : Text; timestamp : Nat64 };
-    };
-
-    public type SharedSpawningNeuronCache = {
-        nonce : Nat64;
-        maturity_e8s_equivalent : Nat64;
-        cached_neuron_stake_e8s : Nat64;
-        created_timestamp_seconds : Nat64;
     };
 
     public type SharedNeuronCache = {
