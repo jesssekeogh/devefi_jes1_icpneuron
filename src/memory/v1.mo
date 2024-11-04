@@ -22,7 +22,7 @@ module {
             var updating : Updating;
             var local_idx : Nat32;
             var refresh_idx : [Nat64];
-            var spawning_neurons : [SpawningNeuronCache];
+            var spawning_neurons : [NeuronCache];
             var activity_log : [Activity];
         };
         cache : NeuronCache;
@@ -34,14 +34,7 @@ module {
         #Ok : { operation : Text; timestamp : Nat64 };
         #Err : { operation : Text; msg : Text; timestamp : Nat64 };
     };
-
-    public type SpawningNeuronCache = {
-        var nonce : Nat64;
-        var maturity_e8s_equivalent : Nat64;
-        var cached_neuron_stake_e8s : Nat64;
-        var created_timestamp_seconds : Nat64;
-    };
-
+    
     public type NeuronCache = {
         var neuron_id : ?Nat64;
         var nonce : ?Nat64;
