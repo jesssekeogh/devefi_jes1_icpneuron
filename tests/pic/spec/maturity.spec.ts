@@ -32,7 +32,6 @@ describe("Maturity", () => {
     await manager.advanceTime(20160); // 2 weeks
     await manager.advanceBlocks(10);
 
-    await manager.advanceBlocksAndTime(1);
     node = await manager.getNode(node.id);
 
     expect(
