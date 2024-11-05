@@ -28,9 +28,14 @@ export const NNS_SUBNET_ID =
 // helper constants:
 //
 
-export const AMOUNT_TO_STAKE: bigint = 10_0000_0000n;
+export const EXPECTED_STAKE: bigint = 20_0000_0000n;
 
-export const EXPECTED_TRANSACTION_FEES: bigint = 20_000n;
+export const ICP_TRANSACTION_FEE: bigint = 10_000n;
+
+export const EXPECTED_TRANSACTION_FEES: bigint = ICP_TRANSACTION_FEE * 2n;
+
+export const AMOUNT_TO_STAKE: bigint =
+  EXPECTED_STAKE + EXPECTED_TRANSACTION_FEES;
 
 export const MINIMUM_DISSOLVE_DELAY: bigint = 15897600n;
 
