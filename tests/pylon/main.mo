@@ -1,5 +1,5 @@
 import Principal "mo:base/Principal";
-import DeVeFi "mo:devefi";
+import Ledgers "mo:devefi/ledgers";
 import ICRC55 "mo:devefi/ICRC55";
 import Rechain "mo:rechain";
 import RT "./rechain";
@@ -13,42 +13,33 @@ import Core "mo:devefi/core";
 
 shared ({ caller = owner }) actor class NNSVECTOR() = this {
 
-    stable let chain_mem = Rechain.Mem();
+    let me_can = Principal.fromActor(this);
+    stable let chain_mem = Rechain.Mem.Rechain.V1.new();
 
-    var chain = Rechain.Chain<RT.DispatchAction, RT.DispatchActionError>({
+    var chain = Rechain.Chain<system, RT.DispatchAction, RT.DispatchActionError>({
         settings = ?{
             Rechain.DEFAULT_SETTINGS with supportedBlocks = [{
                 block_type = "55vec";
                 url = "https://github.com/dfinity/ICRC/issues/55";
             }];
         };
-        mem = chain_mem;
+        xmem = chain_mem;
         encodeBlock = RT.encodeBlock;
         reducers = [];
+        me_can;
     });
 
-    ignore Timer.setTimer<system>(
-        #seconds 0,
-        func() : async () {
-            await chain.start_timers<system>();
-        },
-    );
+    stable let dvf_mem_1 = Ledgers.Mem.Ledgers.V1.new();
 
-    ignore Timer.setTimer<system>(
-        #seconds 1,
-        func() : async () {
-            await chain.upgrade_archives();
-        },
-    );
-
-    stable let dvf_mem = DeVeFi.Mem();
-
-    let dvf = DeVeFi.DeVeFi<system>({ mem = dvf_mem });
+    let dvf = Ledgers.Ledgers<system>({ xmem = dvf_mem_1; me_can });
 
     stable let mem_core_1 = Core.Mem.Core.V1.new();
 
     let test_icrc : Principal = Principal.fromText("7tjcv-pp777-77776-qaaaa-cai");
     let icp_ledger = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+
+    dvf.add_ledger<system>(test_icrc, #icrc);
+    dvf.add_ledger<system>(icp_ledger, #icp);
 
     let billing : ICRC55.BillingPylon = {
         ledger = test_icrc;
@@ -57,34 +48,36 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         freezing_threshold_days = 10;
         exempt_daily_cost_balance = null;
         split = {
-            platform = 200;
-            pylon = 200;
-            author = 400;
-            affiliate = 200;
+            platform = 20;
+            pylon = 20;
+            author = 40;
+            affiliate = 20;
+        };
+        pylon_account = {
+            owner = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
+            subaccount = null;
+        };
+        platform_account = {
+            owner = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
+            subaccount = null;
         };
     };
+
     let core = Core.Mod<system>({
         xmem = mem_core_1;
         settings = {
-            Core.DEFAULT_SETTINGS with
-            BILLING = ?billing;
+            BILLING = billing;
             PYLON_NAME = "NNS Vector";
             PYLON_GOVERNED_BY = "Neutrinite DAO";
-            PYLON_FEE_ACCOUNT = ?{
-                owner = Principal.fromText("eqsml-lyaaa-aaaaq-aacdq-cai");
-                subaccount = null;
-            };
+            TEMP_NODE_EXPIRATION_SEC = 3600;
+            MAX_INSTRUCTIONS_PER_HEARTBEAT = 300_000_000;
+            REQUEST_MAX_EXPIRE_SEC = 3600;
+            ALLOW_TEMP_NODE_CREATION = true;
         };
         dvf;
         chain;
+        me_can;
     });
-
-    dvf.add_ledger<system>(test_icrc, #icrc);
-    dvf.add_ledger<system>(icp_ledger, #icp);
-
-    dvf.start<system>(Principal.fromActor(this));
-    core.start<system>(Principal.fromActor(this));
-    chain_mem.canister := ?Principal.fromActor(this);
 
     // Components
     let mem_vec_nns_1 = VecNNS.Mem.Vector.V1.new();
@@ -97,6 +90,7 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         dvf;
         core;
         vmod;
+        me_can;
     });
 
     private func proc() { vec_nns.run() };
@@ -176,7 +170,7 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         dvf.getErrors();
     };
 
-    public query func get_ledgers_info() : async [DeVeFi.LedgerInfo] {
+    public query func get_ledgers_info() : async [Ledgers.LedgerInfo] {
         dvf.getLedgersInfo();
     };
 

@@ -25,7 +25,7 @@ module {
         internals : {
             updating : Updating;
             local_idx : Nat32;
-            refresh_idx : [Nat64];
+            refresh_idx : ?Nat64;
             spawning_neurons : [SharedNeuronCache];
             activity_log : [Activity];
         };

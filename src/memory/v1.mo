@@ -21,7 +21,7 @@ module {
         internals : {
             var updating : Updating;
             var local_idx : Nat32;
-            var refresh_idx : [Nat64];
+            var refresh_idx : ?Nat64;
             var spawning_neurons : [NeuronCache];
             var activity_log : [Activity];
         };
@@ -34,7 +34,7 @@ module {
         #Ok : { operation : Text; timestamp : Nat64 };
         #Err : { operation : Text; msg : Text; timestamp : Nat64 };
     };
-    
+
     public type NeuronCache = {
         var neuron_id : ?Nat64;
         var nonce : ?Nat64;
