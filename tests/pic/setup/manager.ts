@@ -53,6 +53,7 @@ interface NeuronStates {
 
 export class Manager {
   private readonly me: ReturnType<typeof createIdentity>;
+  private readonly billingIdentity: ReturnType<typeof createIdentity>;
   private readonly pic: PocketIc;
   private readonly vectorActor: Actor<NNSVECTOR>;
   private readonly icrcActor: Actor<ICRCLEDGER>;
@@ -62,6 +63,7 @@ export class Manager {
   constructor(
     pic: PocketIc,
     me: ReturnType<typeof createIdentity>,
+    billingIdentity: ReturnType<typeof createIdentity>,
     vectorActor: Actor<NNSVECTOR>,
     icrcActor: Actor<ICRCLEDGER>,
     nnsActor: Actor<GOVERNANCE>,
@@ -69,6 +71,7 @@ export class Manager {
   ) {
     this.pic = pic;
     this.me = me;
+    this.billingIdentity = billingIdentity;
     this.vectorActor = vectorActor;
     this.icrcActor = icrcActor;
     this.nnsActor = nnsActor;
@@ -96,6 +99,7 @@ export class Manager {
     await pic.tick();
 
     let identity = createIdentity("superSecretAlicePassword");
+    let billingIdentity = createIdentity("superSecretBobPassword");
 
     // setup ICRC
     let icrcFixture = await ICRCLedger(pic, identity.getPrincipal());
@@ -130,6 +134,7 @@ export class Manager {
     return new Manager(
       pic,
       identity,
+      billingIdentity,
       vectorFixture.actor,
       icrcFixture.actor,
       govActor,
@@ -371,6 +376,27 @@ export class Manager {
     });
 
     return { icrc_tokens: icrc, icp_tokens: icp };
+  }
+
+  public async getBillingBalances() {
+    // billing fees are in virtual account
+    let bal = await this.vectorActor.icrc55_virtual_balances({
+      owner: this.billingIdentity.getPrincipal(),
+      subaccount: [],
+    });
+
+    // return other balances to check things out
+    let icrc = await this.icrcActor.icrc1_balance_of({
+      owner: this.billingIdentity.getPrincipal(),
+      subaccount: [],
+    });
+
+    let icp = await this.ledgerActor.icrc1_balance_of({
+      owner: this.billingIdentity.getPrincipal(),
+      subaccount: [],
+    });
+    
+    return { virtual_bal: bal, icrc_tokens: icrc, icp_tokens: icp };
   }
 
   public getNodeSourceAccount(node: NodeShared): Account {
