@@ -6,21 +6,21 @@ module {
         variables : {
             update_delay_seconds : Nat64;
             update_followee : Nat64;
-            update_dissolving : Bool;
+            update_dissolving : State;
         };
     };
 
     public type ModifyRequest = {
         update_delay_seconds : ?Nat64;
         update_followee : ?Nat64;
-        update_dissolving : ?Bool;
+        update_dissolving : ?State;
     };
 
     public type Shared = {
         variables : {
             update_delay_seconds : Nat64;
             update_followee : Nat64;
-            update_dissolving : Bool;
+            update_dissolving : State;
         };
         internals : {
             updating : Updating;
@@ -31,6 +31,8 @@ module {
         };
         cache : SharedNeuronCache;
     };
+
+    public type State = { #StartDissolving; #KeepLocked};
 
     public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
 

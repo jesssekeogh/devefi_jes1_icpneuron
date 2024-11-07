@@ -17,7 +17,7 @@ const WASM_PATH = resolve(
   "ic",
   "canisters",
   "nnsvector",
-  "nnsvector.wasm"
+  "nnsvector.wasm.gz"
 );
 
 export async function NNSVector(pic: PocketIc) {

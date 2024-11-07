@@ -201,10 +201,22 @@ export class Manager {
     await this.pic.tick(blocks);
   }
 
-  public async advanceBlocksAndTime(rounds: number): Promise<void> {
+  // used for when a refresh is pending on a node
+  public async advanceBlocksAndTimeMinutes(rounds: number): Promise<void> {
+    let mins = 10;
+    let blocks = 10;
+
     for (let i = 0; i < rounds; i++) {
-      let mins = 10;
-      let blocks = 10;
+      await this.pic.advanceTime(mins * 60 * 1000);
+      await this.pic.tick(blocks);
+    }
+  }
+
+  // used for when no refresh is pending, a node is updated once every 6 hours
+  public async advanceBlocksAndTimeHours(rounds: number): Promise<void> {
+    let mins = 24 * 60; // 6 hours
+    let blocks = 10;
+    for (let i = 0; i < rounds; i++) {
       await this.pic.advanceTime(mins * 60 * 1000);
       await this.pic.tick(blocks);
     }
@@ -303,14 +315,14 @@ export class Manager {
     stakeParams: StakeNeuronParams
   ): Promise<NodeShared> {
     let node = await this.createNode(stakeParams);
-    await this.advanceBlocksAndTime(1);
+    await this.advanceBlocksAndTimeMinutes(1);
 
     await this.payNodeBill(node);
 
-    await this.advanceBlocksAndTime(2);
+    await this.advanceBlocksAndTimeMinutes(2);
 
     await this.sendIcp(this.getNodeSourceAccount(node), stakeAmount);
-    await this.advanceBlocksAndTime(8);
+    await this.advanceBlocksAndTimeMinutes(5);
 
     let refreshedNode = await this.getNode(node.id);
     return refreshedNode;
@@ -395,7 +407,7 @@ export class Manager {
       owner: this.billingIdentity.getPrincipal(),
       subaccount: [],
     });
-    
+
     return { virtual_bal: bal, icrc_tokens: icrc, icp_tokens: icp };
   }
 
