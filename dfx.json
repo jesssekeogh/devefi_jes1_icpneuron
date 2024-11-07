@@ -3,6 +3,7 @@
     "nnsvector": {
       "main": "tests/pylon/main.mo",
       "type": "motoko",
+      "gzip": true,
       "declarations": {
         "node_compatibility": true,
         "output": "tests/pic/declarations/nnsvector"
