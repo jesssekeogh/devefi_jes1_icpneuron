@@ -44,11 +44,12 @@ module {
 
         let ICP_LEDGER_CANISTER_ID = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
 
-        // Timeout interval for checking caches when no neuron refresh is pending.
-        let TIMEOUT_NANOS_NO_REFRESH_PENDING : Nat64 = (6 * 60 * 60 * 1_000_000_000); // every 6 hours
+        // Interval for cache check when no neuron refresh is pending.
+        // Maturity accumulates only once per day, allowing at most one neuron spawn daily.
+        let TIMEOUT_NANOS_NO_REFRESH_PENDING : Nat64 = (24 * 60 * 60 * 1_000_000_000); // every 24 hours
 
-        // Timeout interval for when a neuron refresh is pending (after an ICP transfer).
-        let TIMEOUT_NANOS_REFRESH_PENDING : Nat64 = (3 * 60 * 1_000_000_000); // every 3 minutes
+        // Timeout interval for when a neuron refresh is pending.
+        let TIMEOUT_NANOS_REFRESH_PENDING : Nat64 = (10 * 60 * 1_000_000_000); // every 10 minutes
 
         // 20.00 ICP in e8s
         let MINIMUM_STAKE : Nat = 2_000_000_000;
@@ -126,7 +127,7 @@ module {
             label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
                 if (not vec.active) continue vec_loop;
-                await* RunAsync.single(vid, vec, nodeMem);
+                await* Run.singleAsync(vid, vec, nodeMem);
             };
         };
 
@@ -140,7 +141,7 @@ module {
 
                 let stakeBal = core.Source.balance(sourceStake);
                 let maturityBal = core.Source.balance(sourceMaturity);
-                let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), get_neuron_nonce(vid, 0));
+                let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), NodeUtils.get_neuron_nonce(vid, 0));
 
                 if (Option.isSome(nodeMem.cache.neuron_id) or (stakeBal >= MINIMUM_STAKE + fee)) {
                     // Proceed to send ICP to the neuron's subaccount
@@ -154,7 +155,7 @@ module {
                     ) else return;
 
                     // Set refresh_idx to refresh or claim the neuron in the next round
-                    nodeMem.internals.refresh_idx := ?txId;
+                    NodeUtils.tx_sent(nodeMem, txId);
                 };
 
                 // forward all maturity
@@ -162,31 +163,29 @@ module {
                     ignore core.Source.send(sourceMaturity, #destination({ port = 0 }), maturityBal);
                 };
             };
-        };
 
-        module RunAsync {
-            public func single(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : async* () {
-                if (not node_ready(nodeMem)) return;
+            public func singleAsync(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : async* () {
                 try {
-                    await* refresh_neuron(nodeMem, vid);
-                    await* refresh_cache(nodeMem, vid);
-                    await* update_delay(nodeMem);
-                    await* update_followees(nodeMem);
-                    await* update_dissolving(nodeMem);
-                    await* disburse_neuron(nodeMem, vec.refund);
-                    await* spawn_maturity(nodeMem, vid);
-                    await* claim_maturity(nodeMem, vid, vec);
+                    if (not NodeUtils.node_ready(nodeMem)) return;
+                    await* NeuronActions.refresh_neuron(nodeMem, vid);
+                    await* CacheManager.refresh_cache(nodeMem, vid);
+                    await* NeuronActions.update_delay(nodeMem);
+                    await* NeuronActions.update_followees(nodeMem);
+                    await* NeuronActions.update_dissolving(nodeMem);
+                    await* NeuronActions.spawn_maturity(nodeMem, vid);
+                    await* NeuronActions.claim_maturity(nodeMem, vid, vec);
+                    await* NeuronActions.disburse_neuron(nodeMem, vec.refund);
                 } catch (err) {
-                    log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
+                    NodeUtils.log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
                 } finally {
                     // `finally` is necessary as internal traps aren't caught by `catch`
                     // It always runs to update `nodeMem.internals.updating`
-                    nodeMem.internals.updating := #Done(U.now());
+                    NodeUtils.node_done(nodeMem);
                 };
             };
         };
 
-        public func create(id : T.NodeId, req : T.CommonCreateRequest, t : I.CreateRequest) : T.Create {
+        public func create(id : T.NodeId, _req : T.CommonCreateRequest, t : I.CreateRequest) : T.Create {
             let obj : M.NodeMem = {
                 variables = {
                     var update_delay_seconds = t.variables.update_delay_seconds;
@@ -238,7 +237,7 @@ module {
             #ok();
         };
 
-        public func get(id : T.NodeId, vec : T.NodeCoreMem) : T.Get<I.Shared> {
+        public func get(id : T.NodeId, _vec : T.NodeCoreMem) : T.Get<I.Shared> {
             let ?t = Map.get(mem.main, Map.n32hash, id) else return #err("Not found");
 
             #ok {
@@ -290,7 +289,7 @@ module {
                 variables = {
                     update_delay_seconds = 15897600; // 184 days
                     update_followee = 8571487073262291504; // neuronpool known neuron
-                    update_dissolving = false; // not dissolving
+                    update_dissolving = #KeepLocked;
                 };
             };
         };
@@ -309,341 +308,388 @@ module {
             icp_ledger_canister_id = ICP_LEDGER_CANISTER_ID;
         });
 
-        public func refresh_cache(nodeMem : Ver1.NodeMem, vid : T.NodeId) : async* () {
-            let ?nid = nodeMem.cache.neuron_id else return;
-
-            let { full_neurons; neuron_infos } = await* nns.listNeurons({
-                neuron_ids = [nid]; // always fetch the main neuron
-                include_readable = true;
-                include_public = true;
-                include_empty = true; // TODO set to false in production
-            });
-
-            let neuronInfos = Map.fromIter<Nat64, GovT.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
-
-            let fullNeurons = Map.fromIterMap<Blob, GovT.Neuron, GovT.Neuron>(
-                full_neurons.vals(),
-                Map.bhash,
-                func(neuron : GovT.Neuron) : ?(Blob, GovT.Neuron) {
-                    return ?(Blob.fromArray(neuron.account), neuron);
-                },
-            );
-
-            update_neuron_cache(nodeMem, neuronInfos, fullNeurons);
-            update_spawning_neurons_cache(nodeMem, vid, neuronInfos, fullNeurons);
-        };
-
-        private func update_neuron_cache(
-            nodeMem : Ver1.NodeMem,
-            neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>,
-            fullNeurons : Map.Map<Blob, GovT.Neuron>,
-        ) : () {
-            let ?nid = nodeMem.cache.neuron_id else return;
-            let ?nonce = nodeMem.cache.nonce else return;
-
-            let neuronSub : Blob = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce);
-
-            switch (Map.get(neuronInfos, Map.n64hash, nid), Map.get(fullNeurons, Map.bhash, neuronSub)) {
-                case (?info, ?full) {
-                    nodeMem.cache.maturity_e8s_equivalent := ?full.maturity_e8s_equivalent;
-                    nodeMem.cache.cached_neuron_stake_e8s := ?full.cached_neuron_stake_e8s;
-                    nodeMem.cache.created_timestamp_seconds := ?full.created_timestamp_seconds;
-                    nodeMem.cache.followees := full.followees;
-                    nodeMem.cache.dissolve_delay_seconds := ?info.dissolve_delay_seconds;
-                    nodeMem.cache.state := ?info.state;
-                    nodeMem.cache.voting_power := ?info.voting_power;
-                    nodeMem.cache.age_seconds := ?info.age_seconds;
+        module NodeUtils {
+            public func node_ready(nodeMem : Ver1.NodeMem) : Bool {
+                // Determine the appropriate timeout based on whether the neuron should be refreshed
+                let timeout = if (node_needs_refresh(nodeMem)) {
+                    TIMEOUT_NANOS_REFRESH_PENDING;
+                } else {
+                    TIMEOUT_NANOS_NO_REFRESH_PENDING;
                 };
-                case (_) { return };
-            };
-        };
 
-        private func update_spawning_neurons_cache(
-            nodeMem : Ver1.NodeMem,
-            vid : Nat32,
-            neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>,
-            fullNeurons : Map.Map<Blob, GovT.Neuron>,
-        ) : () {
-            let spawningNeurons = Vector.Vector<Ver1.NeuronCache>();
-
-            // finds neurons that this vector owner has created and adds them to the cache
-            // start at 1, 0 is reserved for the vectors main neuron
-            var idx : Nat32 = 1;
-            label idxLoop while (idx <= nodeMem.internals.local_idx) {
-                let spawningNonce : Nat64 = get_neuron_nonce(vid, idx);
-                let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), spawningNonce);
-
-                let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else continue idxLoop;
-                let ?nid = full.id else continue idxLoop;
-                let ?info = Map.get(neuronInfos, Map.n64hash, nid.id) else continue idxLoop;
-
-                // adds spawning neurons too, a possible memory adjustment could be to just add spawned neurons,
-                // it is nice to show the vector owner the neurons that are spawning though
-                if (full.cached_neuron_stake_e8s > 0 or full.maturity_e8s_equivalent > 0) {
-                    spawningNeurons.add({
-                        var neuron_id = ?nid.id;
-                        var nonce = ?spawningNonce;
-                        var maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
-                        var cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
-                        var created_timestamp_seconds = ?full.created_timestamp_seconds;
-                        var followees = full.followees;
-                        var dissolve_delay_seconds = ?info.dissolve_delay_seconds;
-                        var state = ?info.state;
-                        var voting_power = ?info.voting_power;
-                        var age_seconds = ?info.age_seconds;
-                    });
-                };
-                idx += 1;
-            };
-
-            nodeMem.internals.spawning_neurons := Vector.toArray(spawningNeurons);
-        };
-
-        private func refresh_neuron(nodeMem : Ver1.NodeMem, vid : T.NodeId) : async* () {
-            let firstNonce = get_neuron_nonce(vid, 0); // first localIdx for every neuron is always 0
-            let ?{ cls = #icp(ledger) } = core.getLedger(ICP_LEDGER_CANISTER_ID) else return;
-            let ?refreshIdx = nodeMem.internals.refresh_idx else return;
-
-            if (ledger.isSent(refreshIdx)) {
-                switch (await* nns.claimNeuron({ nonce = firstNonce })) {
-                    case (#ok(neuronId)) {
-                        // if no neuron, set these values once
-                        if (not Option.isSome(nodeMem.cache.neuron_id)) {
-                            // Store the neuron's ID and nonce in the cache
-                            nodeMem.cache.neuron_id := ?neuronId;
-                            nodeMem.cache.nonce := ?firstNonce;
-                        };
-
-                        // Check if refreshIdx hasn't changed during the async call.
-                        // If it hasn't changed, it's safe to reset refresh_idx to null.
-                        if (Option.equal(?refreshIdx, nodeMem.internals.refresh_idx, Nat64.equal)) {
-                            nodeMem.internals.refresh_idx := null;
-                        };
-
-                        log_activity(nodeMem, "refresh_neuron", #Ok);
+                switch (nodeMem.internals.updating) {
+                    case (#Init) {
+                        nodeMem.internals.updating := #Calling(U.now());
+                        return true;
                     };
-                    case (#err(err)) {
-                        log_activity(nodeMem, "refresh_neuron", #Err(debug_show err));
+                    case (#Calling(ts) or #Done(ts)) {
+                        if (U.now() >= ts + timeout) {
+                            nodeMem.internals.updating := #Calling(U.now());
+                            return true;
+                        } else {
+                            return false;
+                        };
                     };
                 };
             };
+
+            private func node_needs_refresh(nodeMem : Ver1.NodeMem) : Bool {
+                return (
+                    Option.isSome(nodeMem.internals.refresh_idx) or
+                    CacheManager.followee_changed(nodeMem, GOVERNANCE_TOPICS[0]) or
+                    CacheManager.dissolving_changed(nodeMem) or
+                    CacheManager.delay_changed(nodeMem)
+                );
+            };
+
+            public func node_done(nodeMem : Ver1.NodeMem) : () {
+                nodeMem.internals.updating := #Done(U.now());
+            };
+
+            public func tx_sent(nodeMem : Ver1.NodeMem, txId : Nat64) : () {
+                nodeMem.internals.refresh_idx := ?txId;
+            };
+
+            public func log_activity(nodeMem : Ver1.NodeMem, operation : Text, result : { #Ok; #Err : Text }) : () {
+                let activityLog = Buffer.fromArray<Ver1.Activity>(nodeMem.internals.activity_log);
+
+                switch (result) {
+                    case (#Ok(())) {
+                        activityLog.add(#Ok({ operation = operation; timestamp = U.now() }));
+                    };
+                    case (#Err(msg)) {
+                        activityLog.add(#Err({ operation = operation; msg = msg; timestamp = U.now() }));
+                    };
+                };
+
+                if (activityLog.size() > ACTIVITY_LOG_LIMIT) {
+                    ignore activityLog.remove(0); // remove 1 item from the beginning
+                };
+
+                nodeMem.internals.activity_log := Buffer.toArray(activityLog);
+            };
+
+            public func get_neuron_nonce(vid : T.NodeId, localId : Nat32) : Nat64 {
+                return Nat64.fromNat32(vid) << 32 | Nat64.fromNat32(localId);
+            };
         };
 
-        private func update_delay(nodeMem : Ver1.NodeMem) : async* () {
-            let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return;
-            let delayToSet = nodeMem.variables.update_delay_seconds;
+        module CacheManager {
+            public func refresh_cache(nodeMem : Ver1.NodeMem, vid : T.NodeId) : async* () {
+                let ?nid = nodeMem.cache.neuron_id else return;
 
-            if (delayToSet > cachedDelay + DELAY_BUFFER_SECONDS and delayToSet <= MAXIMUM_DELAY_SECONDS) {
-                let neuron = NNS.Neuron({
-                    nns_canister_id = NNS_CANISTER_ID;
-                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
+                let { full_neurons; neuron_infos } = await* nns.listNeurons({
+                    neuron_ids = [nid]; // always fetch the main neuron
+                    include_readable = true;
+                    include_public = true;
+                    include_empty = true; // TODO set to false in production
                 });
 
-                switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = (U.now() / 1_000_000_000) + delayToSet })) {
-                    case (#ok(_)) {
-                        log_activity(nodeMem, "update_delay", #Ok);
+                let neuronInfos = Map.fromIter<Nat64, GovT.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
+
+                let fullNeurons = Map.fromIterMap<Blob, GovT.Neuron, GovT.Neuron>(
+                    full_neurons.vals(),
+                    Map.bhash,
+                    func(neuron : GovT.Neuron) : ?(Blob, GovT.Neuron) {
+                        return ?(Blob.fromArray(neuron.account), neuron);
+                    },
+                );
+
+                update_neuron_cache(nodeMem, neuronInfos, fullNeurons);
+                update_spawning_neurons_cache(nodeMem, vid, neuronInfos, fullNeurons);
+            };
+
+            private func update_neuron_cache(
+                nodeMem : Ver1.NodeMem,
+                neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>,
+                fullNeurons : Map.Map<Blob, GovT.Neuron>,
+            ) : () {
+                let ?nid = nodeMem.cache.neuron_id else return;
+                let ?nonce = nodeMem.cache.nonce else return;
+
+                let neuronSub : Blob = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce);
+
+                switch (Map.get(neuronInfos, Map.n64hash, nid), Map.get(fullNeurons, Map.bhash, neuronSub)) {
+                    case (?info, ?full) {
+                        nodeMem.cache.maturity_e8s_equivalent := ?full.maturity_e8s_equivalent;
+                        nodeMem.cache.cached_neuron_stake_e8s := ?full.cached_neuron_stake_e8s;
+                        nodeMem.cache.created_timestamp_seconds := ?full.created_timestamp_seconds;
+                        nodeMem.cache.followees := full.followees;
+                        nodeMem.cache.dissolve_delay_seconds := ?info.dissolve_delay_seconds;
+                        nodeMem.cache.state := ?info.state;
+                        nodeMem.cache.voting_power := ?info.voting_power;
+                        nodeMem.cache.age_seconds := ?info.age_seconds;
                     };
-                    case (#err(err)) {
-                        log_activity(nodeMem, "update_delay", #Err(debug_show err));
+                    case (_) { return };
+                };
+            };
+
+            private func update_spawning_neurons_cache(
+                nodeMem : Ver1.NodeMem,
+                vid : Nat32,
+                neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>,
+                fullNeurons : Map.Map<Blob, GovT.Neuron>,
+            ) : () {
+                let spawningNeurons = Vector.Vector<Ver1.NeuronCache>();
+
+                // finds neurons that this vector owner has created and adds them to the cache
+                // start at 1, 0 is reserved for the vectors main neuron
+                var idx : Nat32 = 1;
+                label idxLoop while (idx <= nodeMem.internals.local_idx) {
+                    let spawningNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, idx);
+                    let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), spawningNonce);
+
+                    let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else continue idxLoop;
+                    let ?nid = full.id else continue idxLoop;
+                    let ?info = Map.get(neuronInfos, Map.n64hash, nid.id) else continue idxLoop;
+
+                    // adds spawning neurons too, a possible memory adjustment could be to just add spawned neurons,
+                    // it is nice to show the vector owner the neurons that are spawning though
+                    if (full.cached_neuron_stake_e8s > 0 or full.maturity_e8s_equivalent > 0) {
+                        spawningNeurons.add({
+                            var neuron_id = ?nid.id;
+                            var nonce = ?spawningNonce;
+                            var maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
+                            var cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
+                            var created_timestamp_seconds = ?full.created_timestamp_seconds;
+                            var followees = full.followees;
+                            var dissolve_delay_seconds = ?info.dissolve_delay_seconds;
+                            var state = ?info.state;
+                            var voting_power = ?info.voting_power;
+                            var age_seconds = ?info.age_seconds;
+                        });
+                    };
+                    idx += 1;
+                };
+
+                nodeMem.internals.spawning_neurons := Vector.toArray(spawningNeurons);
+            };
+
+            public func delay_changed(nodeMem : Ver1.NodeMem) : Bool {
+                let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return false;
+                let delayToSet = nodeMem.variables.update_delay_seconds;
+                return delayToSet > cachedDelay + DELAY_BUFFER_SECONDS and delayToSet <= MAXIMUM_DELAY_SECONDS;
+            };
+
+            public func followee_changed(nodeMem : Ver1.NodeMem, topic : Int32) : Bool {
+                let currentFollowees = Map.fromIter<Int32, GovT.Followees>(nodeMem.cache.followees.vals(), Map.i32hash);
+                let followeeToSet = nodeMem.variables.update_followee;
+
+                switch (Map.get(currentFollowees, Map.i32hash, topic)) {
+                    case (?{ followees }) {
+                        return followees[0].id != followeeToSet;
+                    };
+                    case _ { return true };
+                };
+            };
+
+            public func dissolving_changed(nodeMem : Ver1.NodeMem) : Bool {
+                let ?dissolvingState = nodeMem.cache.state else return false;
+
+                switch (nodeMem.variables.update_dissolving) {
+                    case (#StartDissolving) {
+                        return dissolvingState != NEURON_STATES.dissolving;
+                    };
+                    case (#KeepLocked) {
+                        return dissolvingState != NEURON_STATES.locked;
                     };
                 };
             };
         };
 
-        private func update_followees(nodeMem : Ver1.NodeMem) : async* () {
-            let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let followeeToSet = nodeMem.variables.update_followee;
+        module NeuronActions {
+            public func refresh_neuron(nodeMem : Ver1.NodeMem, vid : T.NodeId) : async* () {
+                let firstNonce = NodeUtils.get_neuron_nonce(vid, 0); // first localIdx for every neuron is always 0
+                let ?{ cls = #icp(ledger) } = core.get_ledger_cls(ICP_LEDGER_CANISTER_ID) else return;
+                let ?refreshIdx = nodeMem.internals.refresh_idx else return;
 
-            let currentFollowees = Map.fromIter<Int32, GovT.Followees>(nodeMem.cache.followees.vals(), Map.i32hash);
+                if (ledger.isSent(refreshIdx)) {
+                    switch (await* nns.claimNeuron({ nonce = firstNonce })) {
+                        case (#ok(neuronId)) {
+                            // if no neuron, set these values once
+                            if (not Option.isSome(nodeMem.cache.neuron_id)) {
+                                // Store the neuron's ID and nonce in the cache
+                                nodeMem.cache.neuron_id := ?neuronId;
+                                nodeMem.cache.nonce := ?firstNonce;
+                            };
 
-            label topicLoop for (topic in GOVERNANCE_TOPICS.vals()) {
-                let needsUpdate = switch (Map.get(currentFollowees, Map.i32hash, topic)) {
-                    case (?{ followees }) { followees[0].id != followeeToSet };
-                    case _ { true };
+                            // Check if refreshIdx hasn't changed during the async call.
+                            // If it hasn't changed, it's safe to reset refresh_idx to null.
+                            if (Option.equal(?refreshIdx, nodeMem.internals.refresh_idx, Nat64.equal)) {
+                                nodeMem.internals.refresh_idx := null;
+                            };
+
+                            NodeUtils.log_activity(nodeMem, "refresh_neuron", #Ok);
+                        };
+                        case (#err(err)) {
+                            NodeUtils.log_activity(nodeMem, "refresh_neuron", #Err(debug_show err));
+                        };
+                    };
                 };
+            };
 
-                if (needsUpdate) {
+            public func update_delay(nodeMem : Ver1.NodeMem) : async* () {
+                let ?neuron_id = nodeMem.cache.neuron_id else return;
+
+                if (CacheManager.delay_changed(nodeMem)) {
                     let neuron = NNS.Neuron({
                         nns_canister_id = NNS_CANISTER_ID;
                         neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                     });
 
-                    switch (await* neuron.follow({ topic = topic; followee = followeeToSet })) {
+                    let nowSecs = U.now() / 1_000_000_000;
+
+                    switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = nowSecs + nodeMem.variables.update_delay_seconds })) {
                         case (#ok(_)) {
-                            log_activity(nodeMem, "update_followees", #Ok);
+                            NodeUtils.log_activity(nodeMem, "update_delay", #Ok);
                         };
                         case (#err(err)) {
-                            log_activity(nodeMem, "update_followees", #Err(debug_show err));
+                            NodeUtils.log_activity(nodeMem, "update_delay", #Err(debug_show err));
                         };
                     };
                 };
             };
-        };
 
-        private func update_dissolving(nodeMem : Ver1.NodeMem) : async* () {
-            let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let ?dissolvingState = nodeMem.cache.state else return;
-            let updateDissolving = nodeMem.variables.update_dissolving;
+            public func update_followees(nodeMem : Ver1.NodeMem) : async* () {
+                let ?neuron_id = nodeMem.cache.neuron_id else return;
 
-            if (updateDissolving and dissolvingState == NEURON_STATES.locked) {
-                let neuron = NNS.Neuron({
-                    nns_canister_id = NNS_CANISTER_ID;
-                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
-                });
+                for (topic in GOVERNANCE_TOPICS.vals()) {
+                    if (CacheManager.followee_changed(nodeMem, topic)) {
+                        let neuron = NNS.Neuron({
+                            nns_canister_id = NNS_CANISTER_ID;
+                            neuron_id_or_subaccount = #NeuronId({
+                                id = neuron_id;
+                            });
+                        });
 
-                switch (await* neuron.startDissolving()) {
-                    case (#ok(_)) {
-                        log_activity(nodeMem, "start_dissolving", #Ok);
+                        switch (await* neuron.follow({ topic = topic; followee = nodeMem.variables.update_followee })) {
+                            case (#ok(_)) {
+                                NodeUtils.log_activity(nodeMem, "update_followees", #Ok);
+                            };
+                            case (#err(err)) {
+                                NodeUtils.log_activity(nodeMem, "update_followees", #Err(debug_show err));
+                            };
+                        };
                     };
-                    case (#err(err)) {
-                        log_activity(nodeMem, "start_dissolving", #Err(debug_show err));
+                };
+            };
+
+            public func update_dissolving(nodeMem : Ver1.NodeMem) : async* () {
+                let ?neuron_id = nodeMem.cache.neuron_id else return;
+
+                if (CacheManager.dissolving_changed(nodeMem)) {
+                    let neuron = NNS.Neuron({
+                        nns_canister_id = NNS_CANISTER_ID;
+                        neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
+                    });
+
+                    switch (nodeMem.variables.update_dissolving) {
+                        case (#StartDissolving) {
+                            switch (await* neuron.startDissolving()) {
+                                case (#ok(_)) {
+                                    NodeUtils.log_activity(nodeMem, "start_dissolving", #Ok);
+                                };
+                                case (#err(err)) {
+                                    NodeUtils.log_activity(nodeMem, "start_dissolving", #Err(debug_show err));
+                                };
+                            };
+                        };
+                        case (#KeepLocked) {
+                            switch (await* neuron.stopDissolving()) {
+                                case (#ok(_)) {
+                                    NodeUtils.log_activity(nodeMem, "stop_dissolving", #Ok);
+                                };
+                                case (#err(err)) {
+                                    NodeUtils.log_activity(nodeMem, "stop_dissolving", #Err(debug_show err));
+                                };
+                            };
+                        };
                     };
                 };
             };
 
-            if (not updateDissolving and dissolvingState == NEURON_STATES.dissolving) {
-                let neuron = NNS.Neuron({
-                    nns_canister_id = NNS_CANISTER_ID;
-                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
-                });
+            public func spawn_maturity(nodeMem : Ver1.NodeMem, vid : T.NodeId) : async* () {
+                let ?neuron_id = nodeMem.cache.neuron_id else return;
+                let ?cachedMaturity = nodeMem.cache.maturity_e8s_equivalent else return;
 
-                switch (await* neuron.stopDissolving()) {
-                    case (#ok(_)) {
-                        log_activity(nodeMem, "stop_dissolving", #Ok);
-                    };
-                    case (#err(err)) {
-                        log_activity(nodeMem, "stop_dissolving", #Err(debug_show err));
-                    };
-                };
-            };
-        };
-
-        private func disburse_neuron(nodeMem : Ver1.NodeMem, refund : Core.Account) : async* () {
-            let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let ?dissolvingState = nodeMem.cache.state else return;
-            let ?cachedStake = nodeMem.cache.cached_neuron_stake_e8s else return;
-            let updateDissolving = nodeMem.variables.update_dissolving;
-
-            if (updateDissolving and dissolvingState == NEURON_STATES.unlocked and cachedStake > 0) {
-                let neuron = NNS.Neuron({
-                    nns_canister_id = NNS_CANISTER_ID;
-                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
-                });
-
-                switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(refund.owner, Option.get(refund.subaccount, AI.defaultSubaccount())) }; amount = null })) {
-                    case (#ok(_)) {
-                        log_activity(nodeMem, "disburse_neuron", #Ok);
-                    };
-                    case (#err(err)) {
-                        log_activity(nodeMem, "disburse_neuron", #Err(debug_show err));
-                    };
-                };
-            };
-        };
-
-        private func spawn_maturity(nodeMem : Ver1.NodeMem, vid : T.NodeId) : async* () {
-            let ?neuron_id = nodeMem.cache.neuron_id else return;
-            let ?cachedMaturity = nodeMem.cache.maturity_e8s_equivalent else return;
-
-            if (cachedMaturity > MINIMUM_SPAWN) {
-                nodeMem.internals.local_idx += 1;
-                let newNonce : Nat64 = get_neuron_nonce(vid, nodeMem.internals.local_idx);
-
-                let neuron = NNS.Neuron({
-                    nns_canister_id = NNS_CANISTER_ID;
-                    neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
-                });
-
-                switch (await* neuron.spawn({ nonce = ?newNonce; new_controller = null; percentage_to_spawn = null })) {
-                    case (#ok(_)) {
-                        log_activity(nodeMem, "spawn_maturity", #Ok);
-                    };
-                    case (#err(err)) {
-                        log_activity(nodeMem, "spawn_maturity", #Err(debug_show err));
-                    };
-                };
-            };
-        };
-
-        private func claim_maturity(nodeMem : Ver1.NodeMem, vid : T.NodeId, vec : T.NodeCoreMem) : async* () {
-            label spawnLoop for (spawningNeuron in nodeMem.internals.spawning_neurons.vals()) {
-                let ?cachedStake = spawningNeuron.cached_neuron_stake_e8s else continue spawnLoop;
-
-                // Once a neuron is spawned, the maturity is converted into staked ICP
-                if (cachedStake > 0) {
-                    let ?nonce = spawningNeuron.nonce else continue spawnLoop;
+                if (cachedMaturity > MINIMUM_SPAWN) {
+                    nodeMem.internals.local_idx += 1;
+                    let newNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, nodeMem.internals.local_idx);
 
                     let neuron = NNS.Neuron({
                         nns_canister_id = NNS_CANISTER_ID;
-                        neuron_id_or_subaccount = #Subaccount(
-                            Blob.toArray(
-                                Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce)
-                            )
-                        );
+                        neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                     });
 
-                    let ?sourceMaturity = core.getSource(vid, vec, 1) else return;
-                    let ?account = core.Source.getAccount(sourceMaturity) else return;
-
-                    switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(account.owner, Option.get(account.subaccount, AI.defaultSubaccount())) }; amount = null })) {
+                    switch (await* neuron.spawn({ nonce = ?newNonce; new_controller = null; percentage_to_spawn = null })) {
                         case (#ok(_)) {
-                            log_activity(nodeMem, "claim_maturity", #Ok);
+                            NodeUtils.log_activity(nodeMem, "spawn_maturity", #Ok);
                         };
                         case (#err(err)) {
-                            log_activity(nodeMem, "claim_maturity", #Err(debug_show err));
+                            NodeUtils.log_activity(nodeMem, "spawn_maturity", #Err(debug_show err));
+                        };
+                    };
+                };
+            };
+
+            public func claim_maturity(nodeMem : Ver1.NodeMem, vid : T.NodeId, vec : T.NodeCoreMem) : async* () {
+                label spawnLoop for (spawningNeuron in nodeMem.internals.spawning_neurons.vals()) {
+                    let ?cachedStake = spawningNeuron.cached_neuron_stake_e8s else continue spawnLoop;
+
+                    // Once a neuron is spawned, the maturity is converted into staked ICP
+                    if (cachedStake > 0) {
+                        let ?nonce = spawningNeuron.nonce else continue spawnLoop;
+
+                        let neuron = NNS.Neuron({
+                            nns_canister_id = NNS_CANISTER_ID;
+                            neuron_id_or_subaccount = #Subaccount(
+                                Blob.toArray(
+                                    Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce)
+                                )
+                            );
+                        });
+
+                        let ?sourceMaturity = core.getSource(vid, vec, 1) else return;
+                        let ?account = core.Source.getAccount(sourceMaturity) else return;
+
+                        switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(account.owner, Option.get(account.subaccount, AI.defaultSubaccount())) }; amount = null })) {
+                            case (#ok(_)) {
+                                NodeUtils.log_activity(nodeMem, "claim_maturity", #Ok);
+                            };
+                            case (#err(err)) {
+                                NodeUtils.log_activity(nodeMem, "claim_maturity", #Err(debug_show err));
+                            };
+                        };
+                    };
+                };
+            };
+
+            public func disburse_neuron(nodeMem : Ver1.NodeMem, refund : Core.Account) : async* () {
+                let ?neuron_id = nodeMem.cache.neuron_id else return;
+                let ?dissolvingState = nodeMem.cache.state else return;
+                let ?cachedStake = nodeMem.cache.cached_neuron_stake_e8s else return;
+
+                let userWantsToDisburse = switch (nodeMem.variables.update_dissolving) {
+                    case (#StartDissolving) { true };
+                    case (#KeepLocked) { false };
+                };
+
+                if (userWantsToDisburse and dissolvingState == NEURON_STATES.unlocked and cachedStake > 0) {
+                    let neuron = NNS.Neuron({
+                        nns_canister_id = NNS_CANISTER_ID;
+                        neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
+                    });
+
+                    switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(refund.owner, Option.get(refund.subaccount, AI.defaultSubaccount())) }; amount = null })) {
+                        case (#ok(_)) {
+                            NodeUtils.log_activity(nodeMem, "disburse_neuron", #Ok);
+                        };
+                        case (#err(err)) {
+                            NodeUtils.log_activity(nodeMem, "disburse_neuron", #Err(debug_show err));
                         };
                     };
                 };
             };
         };
-
-        private func node_ready(nodeMem : Ver1.NodeMem) : Bool {
-            // Determine the appropriate timeout based on whether the neuron should be refreshed
-            let timeout = if (Option.isSome(nodeMem.internals.refresh_idx)) {
-                TIMEOUT_NANOS_REFRESH_PENDING;
-            } else {
-                TIMEOUT_NANOS_NO_REFRESH_PENDING;
-            };
-
-            switch (nodeMem.internals.updating) {
-                case (#Init) {
-                    nodeMem.internals.updating := #Calling(U.now());
-                    return true;
-                };
-                case (#Calling(ts) or #Done(ts)) {
-                    if (U.now() >= ts + timeout) {
-                        nodeMem.internals.updating := #Calling(U.now());
-                        return true;
-                    } else {
-                        return false;
-                    };
-                };
-            };
-        };
-
-        private func log_activity(nodeMem : Ver1.NodeMem, operation : Text, result : { #Ok; #Err : Text }) : () {
-            let activityLog = Buffer.fromArray<Ver1.Activity>(nodeMem.internals.activity_log);
-
-            switch (result) {
-                case (#Ok(())) {
-                    activityLog.add(#Ok({ operation = operation; timestamp = U.now() }));
-                };
-                case (#Err(msg)) {
-                    activityLog.add(#Err({ operation = operation; msg = msg; timestamp = U.now() }));
-                };
-            };
-
-            if (activityLog.size() > ACTIVITY_LOG_LIMIT) {
-                ignore activityLog.remove(0); // remove 1 item from the beginning
-            };
-
-            nodeMem.internals.activity_log := Buffer.toArray(activityLog);
-        };
-
-        private func get_neuron_nonce(vid : T.NodeId, localId : Nat32) : Nat64 {
-            return Nat64.fromNat32(vid) << 32 | Nat64.fromNat32(localId);
-        };
-
     };
 };

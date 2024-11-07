@@ -16,7 +16,7 @@ module {
         variables : {
             var update_delay_seconds : Nat64;
             var update_followee : Nat64;
-            var update_dissolving : Bool;
+            var update_dissolving : State;
         };
         internals : {
             var updating : Updating;
@@ -27,6 +27,8 @@ module {
         };
         cache : NeuronCache;
     };
+
+    public type State = { #StartDissolving; #KeepLocked};
 
     public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
 
