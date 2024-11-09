@@ -41,7 +41,7 @@ import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
 interface StakeNeuronParams {
   dissolveDelay: bigint;
   followee: bigint;
-  dissolving: boolean;
+  dissolving: { StartDissolving: null } | { KeepLocked: null };
 }
 
 interface NeuronStates {
@@ -203,7 +203,7 @@ export class Manager {
 
   // used for when a refresh is pending on a node
   public async advanceBlocksAndTimeMinutes(rounds: number): Promise<void> {
-    let mins = 10;
+    let mins = 10; // 10 mins
     let blocks = 10;
 
     for (let i = 0; i < rounds; i++) {
@@ -212,9 +212,9 @@ export class Manager {
     }
   }
 
-  // used for when no refresh is pending, a node is updated once every 6 hours
-  public async advanceBlocksAndTimeHours(rounds: number): Promise<void> {
-    let mins = 24 * 60; // 6 hours
+  // used for when no refresh is pending, a node is updated once every 12 hours
+  public async advanceBlocksAndTimeDays(rounds: number): Promise<void> {
+    let mins = 24 * 60; // 24 hours
     let blocks = 10;
     for (let i = 0; i < rounds; i++) {
       await this.pic.advanceTime(mins * 60 * 1000);
@@ -268,7 +268,7 @@ export class Manager {
     nodeId: number,
     updateDelaySeconds: [] | [bigint],
     updateFollowee: [] | [bigint],
-    updateDissolving: [] | [boolean]
+    updateDissolving: [] | [{ StartDissolving: null } | { KeepLocked: null }]
   ): Promise<BatchCommandResponse> {
     let modCustomReq: ModifyRequest = {
       nns: {
@@ -321,8 +321,8 @@ export class Manager {
 
     await this.advanceBlocksAndTimeMinutes(2);
 
-    await this.sendIcp(this.getNodeSourceAccount(node), stakeAmount);
-    await this.advanceBlocksAndTimeMinutes(5);
+    await this.sendIcp(this.getNodeSourceAccount(node, 0), stakeAmount);
+    await this.advanceBlocksAndTimeMinutes(8);
 
     let refreshedNode = await this.getNode(node.id);
     return refreshedNode;
@@ -411,12 +411,12 @@ export class Manager {
     return { virtual_bal: bal, icrc_tokens: icrc, icp_tokens: icp };
   }
 
-  public getNodeSourceAccount(node: NodeShared): Account {
+  public getNodeSourceAccount(node: NodeShared, port: number): Account {
     if (!node || node.sources.length === 0) {
       throw new Error("Invalid node or no sources found");
     }
 
-    let endpoint = node.sources[0].endpoint;
+    let endpoint = node.sources[port].endpoint;
 
     if ("ic" in endpoint) {
       return endpoint.ic.account;
