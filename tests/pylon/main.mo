@@ -174,4 +174,15 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         dvf.getLedgersInfo();
     };
 
+    // public query func get_node_addr(req : [ICRC55.GetNode]) : async Blob {
+    //     let _nodes = sys.icrc55_get_nodes(req);
+
+    //     let ?_node = _nodes[0];
+
+    //     // for tesing legacy ICP maturiyt address
+    //     let #ic({ account }) = _node.sources[1].endpoint;
+
+    //     return Principal.toLedgerAccount(account.owner, account.subaccount)
+    // };
+
 };

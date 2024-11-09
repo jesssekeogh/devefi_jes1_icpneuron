@@ -14,7 +14,6 @@ import Vector "mo:vector/Class";
 import Ver1 "./memory/v1";
 import I "./interface";
 import GovT "mo:neuro/interfaces/nns_interface";
-import AI "mo:account-identifier";
 import { NNS } "mo:neuro";
 import Tools "mo:neuro/tools";
 
@@ -46,10 +45,10 @@ module {
 
         // Interval for cache check when no neuron refresh is pending.
         // Maturity accumulates only once per day, allowing at most one neuron spawn daily.
-        let TIMEOUT_NANOS_NO_REFRESH_PENDING : Nat64 = (24 * 60 * 60 * 1_000_000_000); // every 24 hours
+        let TIMEOUT_NANOS_NO_REFRESH_PENDING : Nat64 = (12 * 60 * 60 * 1_000_000_000); // every 12 hours
 
         // Timeout interval for when a neuron refresh is pending.
-        let TIMEOUT_NANOS_REFRESH_PENDING : Nat64 = (10 * 60 * 1_000_000_000); // every 10 minutes
+        let TIMEOUT_NANOS_REFRESH_PENDING : Nat64 = (5 * 60 * 1_000_000_000); // every 5 minutes
 
         // 20.00 ICP in e8s
         let MINIMUM_STAKE : Nat = 2_000_000_000;
@@ -143,7 +142,11 @@ module {
                 let maturityBal = core.Source.balance(sourceMaturity);
                 let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), NodeUtils.get_neuron_nonce(vid, 0));
 
-                if (Option.isSome(nodeMem.cache.neuron_id) or (stakeBal >= MINIMUM_STAKE + fee)) {
+                // If a neuron exists, a smaller amoount is required for increasing the existing stake.
+                // If no neuron exists, enforce the minimum stake requirement (plus fee) to create a new neuron.
+                let requiredStake = if (Option.isSome(nodeMem.cache.neuron_id)) fee else MINIMUM_STAKE;
+
+                if (stakeBal > requiredStake) {
                     // Proceed to send ICP to the neuron's subaccount
                     let #ok(txId) = core.Source.send(
                         sourceStake,
@@ -166,15 +169,16 @@ module {
 
             public func singleAsync(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : async* () {
                 try {
-                    if (not NodeUtils.node_ready(nodeMem)) return;
-                    await* NeuronActions.refresh_neuron(nodeMem, vid);
-                    await* CacheManager.refresh_cache(nodeMem, vid);
-                    await* NeuronActions.update_delay(nodeMem);
-                    await* NeuronActions.update_followees(nodeMem);
-                    await* NeuronActions.update_dissolving(nodeMem);
-                    await* NeuronActions.spawn_maturity(nodeMem, vid);
-                    await* NeuronActions.claim_maturity(nodeMem, vid, vec);
-                    await* NeuronActions.disburse_neuron(nodeMem, vec.refund);
+                    if (NodeUtils.node_ready(nodeMem)) {
+                        await* NeuronActions.refresh_neuron(nodeMem, vid);
+                        await* NeuronActions.update_delay(nodeMem);
+                        await* NeuronActions.update_followees(nodeMem);
+                        await* NeuronActions.update_dissolving(nodeMem);
+                        await* NeuronActions.spawn_maturity(nodeMem, vid);
+                        await* NeuronActions.claim_maturity(nodeMem, vec);
+                        await* NeuronActions.disburse_neuron(nodeMem, vec.refund);
+                        await* CacheManager.refresh_cache(nodeMem, vid);
+                    };
                 } catch (err) {
                     NodeUtils.log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
                 } finally {
@@ -466,7 +470,7 @@ module {
             };
 
             public func delay_changed(nodeMem : Ver1.NodeMem) : Bool {
-                let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return false;
+                let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return true;
                 let delayToSet = nodeMem.variables.update_delay_seconds;
                 return delayToSet > cachedDelay + DELAY_BUFFER_SECONDS and delayToSet <= MAXIMUM_DELAY_SECONDS;
             };
@@ -488,10 +492,10 @@ module {
 
                 switch (nodeMem.variables.update_dissolving) {
                     case (#StartDissolving) {
-                        return dissolvingState != NEURON_STATES.dissolving;
+                        return dissolvingState == NEURON_STATES.locked;
                     };
                     case (#KeepLocked) {
-                        return dissolvingState != NEURON_STATES.locked;
+                        return dissolvingState == NEURON_STATES.dissolving;
                     };
                 };
             };
@@ -632,7 +636,7 @@ module {
                 };
             };
 
-            public func claim_maturity(nodeMem : Ver1.NodeMem, vid : T.NodeId, vec : T.NodeCoreMem) : async* () {
+            public func claim_maturity(nodeMem : Ver1.NodeMem, vec : T.NodeCoreMem) : async* () {
                 label spawnLoop for (spawningNeuron in nodeMem.internals.spawning_neurons.vals()) {
                     let ?cachedStake = spawningNeuron.cached_neuron_stake_e8s else continue spawnLoop;
 
@@ -649,10 +653,9 @@ module {
                             );
                         });
 
-                        let ?sourceMaturity = core.getSource(vid, vec, 1) else return;
-                        let ?account = core.Source.getAccount(sourceMaturity) else return;
+                        let ?account = core.getSourceAccountIC(vec, 1) else return;
 
-                        switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(account.owner, Option.get(account.subaccount, AI.defaultSubaccount())) }; amount = null })) {
+                        switch (await* neuron.disburse({ to_account = ?{ hash = Principal.toLedgerAccount(account.owner, account.subaccount) }; amount = null })) {
                             case (#ok(_)) {
                                 NodeUtils.log_activity(nodeMem, "claim_maturity", #Ok);
                             };
@@ -680,7 +683,7 @@ module {
                         neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                     });
 
-                    switch (await* neuron.disburse({ to_account = ?{ hash = AI.accountIdentifier(refund.owner, Option.get(refund.subaccount, AI.defaultSubaccount())) }; amount = null })) {
+                    switch (await* neuron.disburse({ to_account = ?{ hash = Principal.toLedgerAccount(refund.owner, refund.subaccount) }; amount = null })) {
                         case (#ok(_)) {
                             NodeUtils.log_activity(nodeMem, "disburse_neuron", #Ok);
                         };
