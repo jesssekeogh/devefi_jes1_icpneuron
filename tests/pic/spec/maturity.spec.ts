@@ -62,6 +62,11 @@ describe("Maturity", () => {
     expect(newBalance.icp_tokens).toBeGreaterThan(oldBalance.icp_tokens);
   });
 
+  it("should add fee to author account", async () => {
+    let { icp_tokens } = await manager.getBillingBalances();
+    expect(icp_tokens).toBeGreaterThan(0n)
+  });
+
   it("should spawn and claim maturity again", async () => {
     await maturity.createMotionProposal(maturityFollowee);
     await manager.advanceBlocksAndTimeMinutes(1);

@@ -162,10 +162,6 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
 
     // ---------- Debug functions -----------
 
-    // public func add_supported_ledger(id : Principal, ltype : { #icp; #icrc }) : () {
-    //     dvf.add_ledger<system>(id, ltype);
-    // };
-
     public query func get_ledger_errors() : async [[Text]] {
         dvf.getErrors();
     };
@@ -173,16 +169,5 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
     public query func get_ledgers_info() : async [Ledgers.LedgerInfo] {
         dvf.getLedgersInfo();
     };
-
-    // public query func get_node_addr(req : [ICRC55.GetNode]) : async Blob {
-    //     let _nodes = sys.icrc55_get_nodes(req);
-
-    //     let ?_node = _nodes[0];
-
-    //     // for tesing legacy ICP maturiyt address
-    //     let #ic({ account }) = _node.sources[1].endpoint;
-
-    //     return Principal.toLedgerAccount(account.owner, account.subaccount)
-    // };
 
 };

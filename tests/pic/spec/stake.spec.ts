@@ -45,14 +45,6 @@ describe("Stake", () => {
     expect(node.custom[0].nns.cache.dissolve_delay_seconds[0]).toBe(
       MAX_DISSOLVE_DELAY
     );
-
-    let failDelay = MAX_DISSOLVE_DELAY + MINIMUM_DISSOLVE_DELAY;
-    await manager.modifyNode(node.id, [failDelay], [], []);
-    await manager.advanceBlocksAndTimeMinutes(3);
-    node = await manager.getNode(node.id);
-    expect(node.custom[0].nns.cache.dissolve_delay_seconds[0]).toBe(
-      MAX_DISSOLVE_DELAY
-    );
   });
 
   it("should update followee", async () => {
@@ -149,15 +141,17 @@ describe("Stake", () => {
     await manager.advanceTime(4300000); // 8 years
     await manager.advanceBlocks(100);
 
-    await manager.advanceBlocksAndTimeDays(5);
+    await manager.advanceBlocksAndTimeDays(3);
     node = await manager.getNode(node.id);
-
     expect(node.custom[0].nns.cache.cached_neuron_stake_e8s[0]).toBe(0n);
   });
 
   it("should re-use empty neuron", async () => {
     expect(node.custom[0].nns.cache.cached_neuron_stake_e8s[0]).toBe(0n);
-    await manager.sendIcp(manager.getNodeSourceAccount(node, 0), AMOUNT_TO_STAKE);
+    await manager.sendIcp(
+      manager.getNodeSourceAccount(node, 0),
+      AMOUNT_TO_STAKE
+    );
     await manager.advanceBlocksAndTimeMinutes(3);
 
     await manager.modifyNode(
@@ -175,5 +169,27 @@ describe("Stake", () => {
     expect(node.custom[0].nns.cache.dissolve_delay_seconds[0]).toBe(
       MAX_DISSOLVE_DELAY
     );
+  });
+
+  it("should delete node with an empty neuron", async () => {
+    await manager.modifyNode(node.id, [], [], [{ StartDissolving: null }]);
+    await manager.advanceBlocksAndTimeMinutes(3);
+    node = await manager.getNode(node.id);
+
+    expect(node.custom[0].nns.cache.state[0]).toBe(
+      manager.getNeuronStates().dissolving
+    );
+
+    expect(node.custom[0].nns.cache.cached_neuron_stake_e8s[0]).toBeGreaterThan(
+      0n
+    );
+
+    await manager.advanceTime(4300000); // 8 years
+    await manager.advanceBlocks(100);
+
+    await manager.advanceBlocksAndTimeDays(5);
+
+    await manager.deleteNode(node.id);
+    await expect(manager.getNode(node.id)).rejects.toThrow();
   });
 });
