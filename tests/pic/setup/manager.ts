@@ -310,6 +310,24 @@ export class Manager {
     return resp.ok.commands[0].modify_node.ok;
   }
 
+  public async deleteNode(nodeId: number) {
+    let resp = await this.vectorActor.icrc55_command({
+      expire_at: [],
+      request_id: [],
+      controller: { owner: this.me.getPrincipal(), subaccount: [] },
+      signature: [],
+      commands: [{ delete_node: nodeId }],
+    });
+
+    //@ts-ignore
+    if (resp.ok.commands[0].delete_node.err) {
+      //@ts-ignore
+      throw new Error(resp.ok.commands[0].delete_node.err);
+    }
+    //@ts-ignore
+    return resp.ok.commands[0].delete_node.ok;
+  }
+
   public async stakeNeuron(
     stakeAmount: bigint,
     stakeParams: StakeNeuronParams
