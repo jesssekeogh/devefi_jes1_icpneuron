@@ -30,7 +30,7 @@ module {
 
     let M = Mem.Vector.V1;
 
-    public let ID = "nns";
+    public let ID = "devefi_jes1_icpneuron";
 
     public class Mod({
         xmem : MU.MemShell<M.Mem>;
@@ -91,11 +91,11 @@ module {
         public func meta() : T.Meta {
             {
                 id = ID; // This has to be same as the variant in vec.custom
-                name = "NNS";
+                name = "ICP Neuron";
                 author = "jes1";
-                description = "Stake NNS Neurons";
+                description = "Stake ICP neurons and receive maturity directly to your destination";
                 supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID)];
-                version = #alpha([0, 0, 1]);
+                version = #beta([0, 1, 0]);
                 create_allowed = true;
                 ledger_slots = [
                     "Neuron"
@@ -107,12 +107,12 @@ module {
                 sources = sources(0);
                 destinations = destinations(0);
                 author_account = {
-                    // owner = Principal.fromText(
-                    //     "jv4ws-fbili-a35rv-xd7a5-xwvxw-trink-oluun-g7bcp-oq5f6-35cba-vqe"
-                    // );
                     owner = Principal.fromText(
-                        "ydl4r-asr5o-7axs3-tshas-4xugy-bvg4x-ixnjd-6qex3-guw6d-5pahc-oqe" // TODO remove, used for testing
+                        "jv4ws-fbili-a35rv-xd7a5-xwvxw-trink-oluun-g7bcp-oq5f6-35cba-vqe"
                     );
+                    // owner = Principal.fromText(
+                    //     "ydl4r-asr5o-7axs3-tshas-4xugy-bvg4x-ixnjd-6qex3-guw6d-5pahc-oqe" // TODO remove, used for testing
+                    // );
                     subaccount = null;
                 };
                 temporary_allowed = true;
@@ -122,6 +122,7 @@ module {
         public func run() : () {
             label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
+                if (Option.isSome(vec.billing.expires)) continue vec_loop; // don't allow staking until fee paid
                 if (not vec.active) continue vec_loop;
                 Run.single(vid, vec, nodeMem);
             };
@@ -130,6 +131,7 @@ module {
         public func runAsync() : async* () {
             label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
+                if (Option.isSome(vec.billing.expires)) continue vec_loop;
                 if (not vec.active) continue vec_loop;
                 await* Run.singleAsync(vid, vec, nodeMem);
             };
@@ -392,10 +394,10 @@ module {
                 let ?nid = nodeMem.cache.neuron_id else return;
 
                 let { full_neurons; neuron_infos } = await* nns.listNeurons({
-                    neuron_ids = [nid]; // always fetch the main neuron
+                    neuron_ids = [nid]; // always fetch the main neuron (even if empty)
                     include_readable = true;
                     include_public = true;
-                    include_empty = true; // TODO set to false in production
+                    include_empty = false; // don't fetch empty neurons (set to true in testing)
                 });
 
                 let neuronInfos = Map.fromIter<Nat64, GovT.NeuronInfo>(neuron_infos.vals(), Map.n64hash);

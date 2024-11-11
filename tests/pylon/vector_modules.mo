@@ -1,34 +1,34 @@
 import ICRC55 "mo:devefi/ICRC55";
 import Core "mo:devefi/core";
-import NNSVector "../../src";
+import IcpNeuronVector "../../src";
 import Result "mo:base/Result";
 import Debug "mo:base/Debug";
 
 module {
 
     public type CreateRequest = {
-        #nns : NNSVector.Interface.CreateRequest;
+        #devefi_jes1_icpneuron : IcpNeuronVector.Interface.CreateRequest;
     };
 
     public type Shared = {
-        #nns : NNSVector.Interface.Shared;
+        #devefi_jes1_icpneuron : IcpNeuronVector.Interface.Shared;
     };
 
     public type ModifyRequest = {
-        #nns : NNSVector.Interface.ModifyRequest;
+        #devefi_jes1_icpneuron : IcpNeuronVector.Interface.ModifyRequest;
     };
 
     public class VectorModules(
         m : {
-            vec_nns : NNSVector.Mod;
+            devefi_jes1_icpneuron : IcpNeuronVector.Mod;
         }
     ) {
 
         public func get(mid : Core.ModuleId, id : Core.NodeId, vec : Core.NodeMem) : Result.Result<Shared, Text> {
 
-            if (mid == NNSVector.ID) {
-                switch (m.vec_nns.get(id, vec)) {
-                    case (#ok(x)) return #ok(#nns(x));
+            if (mid == IcpNeuronVector.ID) {
+                switch (m.devefi_jes1_icpneuron.get(id, vec)) {
+                    case (#ok(x)) return #ok(#devefi_jes1_icpneuron(x));
                     case (#err(x)) return #err(x);
                 };
             };
@@ -37,50 +37,50 @@ module {
         };
 
         public func getDefaults(mid : Core.ModuleId) : CreateRequest {
-            if (mid == NNSVector.ID) return #nns(m.vec_nns.defaults());
+            if (mid == IcpNeuronVector.ID) return #devefi_jes1_icpneuron(m.devefi_jes1_icpneuron.defaults());
             Debug.trap("Unknown variant");
 
         };
 
         public func sources(mid : Core.ModuleId, id : Core.NodeId) : Core.EndpointsDescription {
-            if (mid == NNSVector.ID) return m.vec_nns.sources(id);
+            if (mid == IcpNeuronVector.ID) return m.devefi_jes1_icpneuron.sources(id);
             Debug.trap("Unknown variant");
 
         };
 
         public func destinations(mid : Core.ModuleId, id : Core.NodeId) : Core.EndpointsDescription {
-            if (mid == NNSVector.ID) return m.vec_nns.destinations(id);
+            if (mid == IcpNeuronVector.ID) return m.devefi_jes1_icpneuron.destinations(id);
             Debug.trap("Unknown variant");
         };
 
         public func create(id : Core.NodeId, creq : Core.CommonCreateRequest, req : CreateRequest) : Result.Result<Core.ModuleId, Text> {
 
             switch (req) {
-                case (#nns(t)) return m.vec_nns.create(id, creq, t);
+                case (#devefi_jes1_icpneuron(t)) return m.devefi_jes1_icpneuron.create(id, creq, t);
             };
             #err("Unknown variant or mismatch");
         };
 
         public func modify(mid : Core.ModuleId, id : Core.NodeId, creq : ModifyRequest) : Result.Result<(), Text> {
             switch (creq) {
-                case (#nns(r)) if (mid == NNSVector.ID) return m.vec_nns.modify(id, r);
+                case (#devefi_jes1_icpneuron(r)) if (mid == IcpNeuronVector.ID) return m.devefi_jes1_icpneuron.modify(id, r);
             };
             #err("Unknown variant or mismatch");
         };
 
         public func delete(mid : Core.ModuleId, id : Core.NodeId) : Result.Result<(), Text> {
-            if (mid == NNSVector.ID) return m.vec_nns.delete(id);
+            if (mid == IcpNeuronVector.ID) return m.devefi_jes1_icpneuron.delete(id);
             Debug.trap("Unknown variant");
         };
 
         public func nodeMeta(mid : Core.ModuleId) : ICRC55.ModuleMeta {
-            if (mid == NNSVector.ID) return m.vec_nns.meta();
+            if (mid == IcpNeuronVector.ID) return m.devefi_jes1_icpneuron.meta();
             Debug.trap("Unknown variant");
         };
 
         public func meta() : [ICRC55.ModuleMeta] {
             [
-                m.vec_nns.meta(),
+                m.devefi_jes1_icpneuron.meta(),
             ];
         };
 

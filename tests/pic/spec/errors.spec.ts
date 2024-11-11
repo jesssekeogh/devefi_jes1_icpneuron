@@ -29,7 +29,9 @@ describe("Errors", () => {
   });
 
   it("should not stake neuron if below minimum", async () => {
-    expect(node.custom[0].nns.cache.neuron_id[0]).toBeUndefined();
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.cache.neuron_id[0]
+    ).toBeUndefined();
     expect(node.sources[0].balance).toBeGreaterThan(0n);
   });
 
@@ -42,10 +44,12 @@ describe("Errors", () => {
 
     await manager.advanceBlocksAndTimeMinutes(5);
     node = await manager.getNode(node.id);
-    expect(node.custom[0].nns.cache.neuron_id[0]).toBeDefined();
-    expect(node.custom[0].nns.cache.dissolve_delay_seconds[0]).toBe(
-      MINIMUM_DISSOLVE_DELAY
-    );
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.cache.neuron_id[0]
+    ).toBeDefined();
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
+    ).toBe(MINIMUM_DISSOLVE_DELAY);
   });
 
   it("should set maximum delay when variable exceeds maximum", async () => {
@@ -55,13 +59,13 @@ describe("Errors", () => {
     await manager.advanceBlocksAndTimeMinutes(3);
 
     node = await manager.getNode(node.id);
-    expect(node.custom[0].nns.cache.dissolve_delay_seconds[0]).toBe(
-      MAX_DISSOLVE_DELAY
-    );
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
+    ).toBe(MAX_DISSOLVE_DELAY);
   });
 
   it("should set the default followee", async () => {
-    for (let followee of node.custom[0].nns.cache.followees) {
+    for (let followee of node.custom[0].devefi_jes1_icpneuron.cache.followees) {
       expect(followee[1].followees[0].id).toBe(MOCK_FOLLOWEE_TO_SET); // mock followee is rakeoff (which is default)
     }
   });
@@ -71,5 +75,4 @@ describe("Errors", () => {
       "Neuron is not empty"
     );
   });
-
 });
