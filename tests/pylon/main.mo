@@ -8,7 +8,7 @@ import U "mo:devefi/utils";
 import T "./vector_modules";
 import MU_sys "mo:devefi/sys";
 
-import VecNNS "../../src";
+import IcpNeuronVector "../../src";
 import Core "mo:devefi/core";
 
 shared ({ caller = owner }) actor class NNSVECTOR() = this {
@@ -80,10 +80,10 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
     });
 
     // Components
-    let mem_vec_nns_1 = VecNNS.Mem.Vector.V1.new();
-    let vec_nns = VecNNS.Mod({ xmem = mem_vec_nns_1; core; dvf });
+    let mem_vec_icpneuron_1 = IcpNeuronVector.Mem.Vector.V1.new();
+    let devefi_jes1_icpneuron = IcpNeuronVector.Mod({ xmem = mem_vec_icpneuron_1; core; dvf });
 
-    let vmod = T.VectorModules({ vec_nns });
+    let vmod = T.VectorModules({ devefi_jes1_icpneuron });
 
     let sys = MU_sys.Mod<system, T.CreateRequest, T.Shared, T.ModifyRequest>({
         xmem = mem_core_1;
@@ -93,9 +93,9 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         me_can;
     });
 
-    private func proc() { vec_nns.run() };
+    private func proc() { devefi_jes1_icpneuron.run() };
 
-    private func async_proc() : async* () { await* vec_nns.runAsync() };
+    private func async_proc() : async* () { await* devefi_jes1_icpneuron.runAsync() };
 
     ignore Timer.recurringTimer<system>(
         #seconds 2,
