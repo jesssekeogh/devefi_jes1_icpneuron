@@ -238,7 +238,7 @@ export class Manager {
     };
 
     let creq: CreateRequest = {
-      nns: {
+      devefi_jes1_icpneuron: {
         variables: {
           update_delay_seconds: stakeParams.dissolveDelay,
           update_followee: stakeParams.followee,
@@ -271,7 +271,7 @@ export class Manager {
     updateDissolving: [] | [{ StartDissolving: null } | { KeepLocked: null }]
   ): Promise<BatchCommandResponse> {
     let modCustomReq: ModifyRequest = {
-      nns: {
+      devefi_jes1_icpneuron: {
         update_delay_seconds: updateDelaySeconds,
         update_dissolving: updateDissolving,
         update_followee: updateFollowee,

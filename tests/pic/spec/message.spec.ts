@@ -34,26 +34,32 @@ describe("Message", () => {
 
     node = await manager.getNode(node.id);
 
-    expect(node.custom[0].nns.variables.update_dissolving).toBeTruthy();
-    expect(node.custom[0].nns.cache.state[0]).toBe(
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.variables.update_dissolving
+    ).toBeTruthy();
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
       manager.getNeuronStates().locked
     ); // should still be locked
 
     // should be network error in log
     expect(
-      node.custom[0].nns.internals.activity_log.some((log) => {
-        if ("Err" in log)
-          return (
-            log.Err.msg === "Canister rrkah-fqaaa-aaaaa-aaaaq-cai is stopped"
-          );
-      })
+      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+        (log) => {
+          if ("Err" in log)
+            return (
+              log.Err.msg === "Canister rrkah-fqaaa-aaaaa-aaaaq-cai is stopped"
+            );
+        }
+      )
     ).toBeTruthy();
 
     // start dissolving should not be there
     expect(
-      node.custom[0].nns.internals.activity_log.some((log) => {
-        if ("Ok" in log) return log.Ok.operation === "start_dissolving";
-      })
+      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+        (log) => {
+          if ("Ok" in log) return log.Ok.operation === "start_dissolving";
+        }
+      )
     ).toBeFalsy();
   });
 
@@ -64,20 +70,24 @@ describe("Message", () => {
 
     node = await manager.getNode(node.id);
 
-    expect(node.custom[0].nns.variables.update_dissolving).toBeTruthy();
-    expect(node.custom[0].nns.cache.state[0]).toBe(
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.variables.update_dissolving
+    ).toBeTruthy();
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
       manager.getNeuronStates().dissolving
     ); // should be dissolving now
     // start dissolving should now be there
     expect(
-      node.custom[0].nns.internals.activity_log.some((log) => {
-        if ("Ok" in log) return log.Ok.operation === "start_dissolving";
-      })
+      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+        (log) => {
+          if ("Ok" in log) return log.Ok.operation === "start_dissolving";
+        }
+      )
     ).toBeTruthy();
   });
 
   it("should throw error when updating followees", async () => {
-    for (let followee of node.custom[0].nns.cache.followees) {
+    for (let followee of node.custom[0].devefi_jes1_icpneuron.cache.followees) {
       expect(followee[1].followees[0].id).toBe(MOCK_FOLLOWEE_TO_SET);
     }
     await manager.stopNnsCanister();
@@ -86,28 +96,32 @@ describe("Message", () => {
     await manager.advanceBlocksAndTimeMinutes(5);
 
     node = await manager.getNode(node.id);
-    expect(node.custom[0].nns.variables.update_followee).toBe(
+    expect(node.custom[0].devefi_jes1_icpneuron.variables.update_followee).toBe(
       MOCK_FOLLOWEE_TO_SET_2 // should have new
     );
-    for (let followee of node.custom[0].nns.cache.followees) {
+    for (let followee of node.custom[0].devefi_jes1_icpneuron.cache.followees) {
       expect(followee[1].followees[0].id).toBe(MOCK_FOLLOWEE_TO_SET); // should still be old
     }
 
     // should be network error in log
     expect(
-      node.custom[0].nns.internals.activity_log.some((log) => {
-        if ("Err" in log)
-          return (
-            log.Err.msg === "Canister rrkah-fqaaa-aaaaa-aaaaq-cai is stopped"
-          );
-      })
+      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+        (log) => {
+          if ("Err" in log)
+            return (
+              log.Err.msg === "Canister rrkah-fqaaa-aaaaa-aaaaq-cai is stopped"
+            );
+        }
+      )
     ).toBeTruthy();
 
     // update followees should not be there
     expect(
-      node.custom[0].nns.internals.activity_log.some((log) => {
-        if ("Ok" in log) return log.Ok.operation === "update_followees";
-      })
+      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+        (log) => {
+          if ("Ok" in log) return log.Ok.operation === "update_followees";
+        }
+      )
     ).toBeFalsy();
   });
 
@@ -118,17 +132,20 @@ describe("Message", () => {
 
     node = await manager.getNode(node.id);
 
-    for (let followee of node.custom[0].nns.cache.followees) {
+    for (let followee of node.custom[0].devefi_jes1_icpneuron.cache.followees) {
       expect(followee[1].followees[0].id).toBe(MOCK_FOLLOWEE_TO_SET_2);
     }
-    expect(node.custom[0].nns.cache.followees).toHaveLength(3);
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.followees).toHaveLength(
+      3
+    );
 
     // update followees should now be there
     expect(
-      node.custom[0].nns.internals.activity_log.some((log) => {
-        if ("Ok" in log) return log.Ok.operation === "update_followees";
-      })
+      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+        (log) => {
+          if ("Ok" in log) return log.Ok.operation === "update_followees";
+        }
+      )
     ).toBeTruthy();
   });
-
 });
