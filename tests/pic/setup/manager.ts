@@ -39,8 +39,8 @@ import { minterIdentity } from "./nns/identity.ts";
 import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
 
 interface StakeNeuronParams {
-  dissolveDelay: bigint;
-  followee: bigint;
+  dissolveDelay: { Default: null } | { DelaySeconds: bigint };
+  followee: { Default: null } | { FolloweeId: bigint };
   dissolving: { StartDissolving: null } | { KeepLocked: null };
 }
 
@@ -240,7 +240,7 @@ export class Manager {
     let creq: CreateRequest = {
       devefi_jes1_icpneuron: {
         variables: {
-          update_delay_seconds: stakeParams.dissolveDelay,
+          update_delay: stakeParams.dissolveDelay,
           update_followee: stakeParams.followee,
           update_dissolving: stakeParams.dissolving,
         },
@@ -266,13 +266,13 @@ export class Manager {
 
   public async modifyNode(
     nodeId: number,
-    updateDelaySeconds: [] | [bigint],
-    updateFollowee: [] | [bigint],
+    updateDelaySeconds: [] | [{ Default: null } | { DelaySeconds: bigint }],
+    updateFollowee: [] | [{ Default: null } | { FolloweeId: bigint }],
     updateDissolving: [] | [{ StartDissolving: null } | { KeepLocked: null }]
   ): Promise<BatchCommandResponse> {
     let modCustomReq: ModifyRequest = {
       devefi_jes1_icpneuron: {
-        update_delay_seconds: updateDelaySeconds,
+        update_delay: updateDelaySeconds,
         update_dissolving: updateDissolving,
         update_followee: updateFollowee,
       },

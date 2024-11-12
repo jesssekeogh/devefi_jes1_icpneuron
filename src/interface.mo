@@ -4,23 +4,23 @@ module {
 
     public type CreateRequest = {
         variables : {
-            update_delay_seconds : Nat64;
-            update_followee : Nat64;
-            update_dissolving : State;
+            update_delay : UpdateDelay;
+            update_followee : UpdateFollowee;
+            update_dissolving : UpdateDissolving;
         };
     };
 
     public type ModifyRequest = {
-        update_delay_seconds : ?Nat64;
-        update_followee : ?Nat64;
-        update_dissolving : ?State;
+        update_delay : ?UpdateDelay;
+        update_followee : ?UpdateFollowee;
+        update_dissolving : ?UpdateDissolving;
     };
 
     public type Shared = {
         variables : {
-            update_delay_seconds : Nat64;
-            update_followee : Nat64;
-            update_dissolving : State;
+            update_delay : UpdateDelay;
+            update_followee : UpdateFollowee;
+            update_dissolving : UpdateDissolving;
         };
         internals : {
             updating : Updating;
@@ -32,10 +32,10 @@ module {
         cache : SharedNeuronCache;
     };
 
-    public type State = { #StartDissolving; #KeepLocked};
-
+    public type UpdateDelay = { #Default; #DelaySeconds : Nat64 };
+    public type UpdateFollowee = { #Default; #FolloweeId : Nat64 };
+    public type UpdateDissolving = { #StartDissolving; #KeepLocked };
     public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
-
     public type Activity = {
         #Ok : { operation : Text; timestamp : Nat64 };
         #Err : { operation : Text; msg : Text; timestamp : Nat64 };

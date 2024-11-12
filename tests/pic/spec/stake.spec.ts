@@ -17,8 +17,8 @@ describe("Stake", () => {
     manager = await Manager.beforeAll();
 
     node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolveDelay: MINIMUM_DISSOLVE_DELAY,
-      followee: MOCK_FOLLOWEE_TO_SET,
+      dissolveDelay: { DelaySeconds: MINIMUM_DISSOLVE_DELAY },
+      followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
       dissolving: { KeepLocked: null },
     });
   });
@@ -41,7 +41,12 @@ describe("Stake", () => {
       node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
     ).toBe(MINIMUM_DISSOLVE_DELAY);
 
-    await manager.modifyNode(node.id, [MAX_DISSOLVE_DELAY], [], []);
+    await manager.modifyNode(
+      node.id,
+      [{ DelaySeconds: MAX_DISSOLVE_DELAY }],
+      [],
+      []
+    );
     await manager.advanceBlocksAndTimeMinutes(3);
     node = await manager.getNode(node.id);
     expect(
@@ -60,13 +65,18 @@ describe("Stake", () => {
 
     // modify to a new followee and expect it to change
 
-    await manager.modifyNode(node.id, [], [MOCK_FOLLOWEE_TO_SET_2], []);
+    await manager.modifyNode(
+      node.id,
+      [],
+      [{ FolloweeId: MOCK_FOLLOWEE_TO_SET_2 }],
+      []
+    );
     await manager.advanceBlocksAndTimeMinutes(3);
     node = await manager.getNode(node.id);
 
-    expect(node.custom[0].devefi_jes1_icpneuron.variables.update_followee).toBe(
-      MOCK_FOLLOWEE_TO_SET_2
-    );
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.variables.update_followee
+    ).toEqual({ FolloweeId: MOCK_FOLLOWEE_TO_SET_2 });
     expect(node.custom[0].devefi_jes1_icpneuron.cache.followees).toHaveLength(
       3
     );
@@ -176,7 +186,7 @@ describe("Stake", () => {
 
     await manager.modifyNode(
       node.id,
-      [MAX_DISSOLVE_DELAY],
+      [{ DelaySeconds: MAX_DISSOLVE_DELAY }],
       [],
       [{ KeepLocked: null }]
     );

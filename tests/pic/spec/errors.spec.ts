@@ -10,16 +10,14 @@ import {
 describe("Errors", () => {
   let manager: Manager;
   let node: NodeShared;
-  let defaultDelay: bigint = 0n;
-  let defaultFollowee: bigint = 0n;
   let belowMinimumStake: bigint = AMOUNT_TO_STAKE - AMOUNT_TO_STAKE / 2n;
 
   beforeAll(async () => {
     manager = await Manager.beforeAll();
 
     node = await manager.stakeNeuron(belowMinimumStake, {
-      dissolveDelay: defaultDelay,
-      followee: defaultFollowee,
+      dissolveDelay: { Default: null },
+      followee: { Default: null },
       dissolving: { KeepLocked: null },
     });
   });
@@ -54,7 +52,7 @@ describe("Errors", () => {
 
   it("should set maximum delay when variable exceeds maximum", async () => {
     let aboveMaximum = MAX_DISSOLVE_DELAY + MINIMUM_DISSOLVE_DELAY;
-    await manager.modifyNode(node.id, [aboveMaximum], [], []);
+    await manager.modifyNode(node.id, [{ DelaySeconds: aboveMaximum }], [], []);
 
     await manager.advanceBlocksAndTimeMinutes(3);
 
