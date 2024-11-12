@@ -483,7 +483,7 @@ module {
                     case (#KeepLocked) {
                         let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return true;
                         let delayToSet : Nat64 = switch (nodeMem.variables.update_delay) {
-                            case (#Default) { 0 };
+                            case (#Default) { MINIMUM_DELAY_SECONDS };
                             case (#DelaySeconds(delay)) { delay };
                         };
 
