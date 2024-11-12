@@ -14,9 +14,9 @@ module {
 
     public type NodeMem = {
         variables : {
-            var update_delay_seconds : Nat64;
-            var update_followee : Nat64;
-            var update_dissolving : State;
+            var update_delay : UpdateDelay;
+            var update_followee : UpdateFollowee;
+            var update_dissolving : UpdateDissolving;
         };
         internals : {
             var updating : Updating;
@@ -28,10 +28,10 @@ module {
         cache : NeuronCache;
     };
 
-    public type State = { #StartDissolving; #KeepLocked};
-
+    public type UpdateDelay = { #Default; #DelaySeconds : Nat64 };
+    public type UpdateFollowee = { #Default; #FolloweeId : Nat64 };
+    public type UpdateDissolving = { #StartDissolving; #KeepLocked };
     public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
-
     public type Activity = {
         #Ok : { operation : Text; timestamp : Nat64 };
         #Err : { operation : Text; msg : Text; timestamp : Nat64 };

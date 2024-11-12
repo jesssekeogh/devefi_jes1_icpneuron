@@ -15,8 +15,8 @@ describe("Maturity", () => {
     maturityFollowee = await maturity.createNeuron();
 
     node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolveDelay: MINIMUM_DISSOLVE_DELAY,
-      followee: maturityFollowee,
+      dissolveDelay: { DelaySeconds: MINIMUM_DISSOLVE_DELAY },
+      followee: { FolloweeId: maturityFollowee },
       dissolving: { KeepLocked: null },
     });
   });
