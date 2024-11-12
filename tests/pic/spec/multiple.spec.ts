@@ -24,8 +24,8 @@ describe("Multiple", () => {
     let done = [];
     for (let i = 0; i < nodesToCreate; i++) {
       let node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-        dissolveDelay: MINIMUM_DISSOLVE_DELAY,
-        followee: MOCK_FOLLOWEE_TO_SET,
+        dissolveDelay: { DelaySeconds: MINIMUM_DISSOLVE_DELAY },
+        followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
         dissolving: { KeepLocked: null },
       });
       done.push(node);
@@ -51,7 +51,12 @@ describe("Multiple", () => {
 
   it("should update multiple neurons", async () => {
     for (let node of nodes) {
-      await manager.modifyNode(node.id, [], [maturityFollowee], []);
+      await manager.modifyNode(
+        node.id,
+        [],
+        [{ FolloweeId: maturityFollowee }],
+        []
+      );
       await manager.advanceBlocksAndTimeMinutes(3);
     }
 
@@ -61,7 +66,7 @@ describe("Multiple", () => {
       node = await manager.getNode(node.id);
       expect(
         node.custom[0].devefi_jes1_icpneuron.variables.update_followee
-      ).toBe(maturityFollowee);
+      ).toEqual({ FolloweeId: maturityFollowee });
       expect(node.custom[0].devefi_jes1_icpneuron.cache.followees).toHaveLength(
         3
       );

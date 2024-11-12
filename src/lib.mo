@@ -95,7 +95,7 @@ module {
                 author = "jes1";
                 description = "Stake ICP neurons and receive maturity directly to your destination";
                 supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID)];
-                version = #beta([0, 1, 0]);
+                version = #beta([0, 1, 1]);
                 create_allowed = true;
                 ledger_slots = [
                     "Neuron"
@@ -107,12 +107,7 @@ module {
                 sources = sources(0);
                 destinations = destinations(0);
                 author_account = {
-                    owner = Principal.fromText(
-                        "jv4ws-fbili-a35rv-xd7a5-xwvxw-trink-oluun-g7bcp-oq5f6-35cba-vqe"
-                    );
-                    // owner = Principal.fromText(
-                    //     "ydl4r-asr5o-7axs3-tshas-4xugy-bvg4x-ixnjd-6qex3-guw6d-5pahc-oqe" // TODO remove, used for testing
-                    // );
+                    owner = Principal.fromText("einw2-uqaaa-aaaar-qagkq-cai");
                     subaccount = null;
                 };
                 temporary_allowed = true;
@@ -149,7 +144,7 @@ module {
                 let maturityBal = core.Source.balance(sourceMaturity);
                 let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), NodeUtils.get_neuron_nonce(vid, 0));
 
-                // If a neuron exists, a smaller amoount is required for increasing the existing stake.
+                // If a neuron exists, a smaller amount is required for increasing the existing stake.
                 // If no neuron exists, enforce the minimum stake requirement (plus fee) to create a new neuron.
                 let requiredStake = if (Option.isSome(nodeMem.cache.neuron_id)) fee else MINIMUM_STAKE;
 
@@ -199,7 +194,7 @@ module {
         public func create(id : T.NodeId, _req : T.CommonCreateRequest, t : I.CreateRequest) : T.Create {
             let obj : M.NodeMem = {
                 variables = {
-                    var update_delay_seconds = t.variables.update_delay_seconds;
+                    var update_delay = t.variables.update_delay;
                     var update_followee = t.variables.update_followee;
                     var update_dissolving = t.variables.update_dissolving;
                 };
@@ -246,7 +241,7 @@ module {
         public func modify(id : T.NodeId, m : I.ModifyRequest) : T.Modify {
             let ?t = Map.get(mem.main, Map.n32hash, id) else return #err("Not found");
 
-            t.variables.update_delay_seconds := Option.get(m.update_delay_seconds, t.variables.update_delay_seconds);
+            t.variables.update_delay := Option.get(m.update_delay, t.variables.update_delay);
             t.variables.update_followee := Option.get(m.update_followee, t.variables.update_followee);
             t.variables.update_dissolving := Option.get(m.update_dissolving, t.variables.update_dissolving);
             #ok();
@@ -257,7 +252,7 @@ module {
 
             #ok {
                 variables = {
-                    update_delay_seconds = t.variables.update_delay_seconds;
+                    update_delay = t.variables.update_delay;
                     update_followee = t.variables.update_followee;
                     update_dissolving = t.variables.update_dissolving;
                 };
@@ -302,8 +297,8 @@ module {
         public func defaults() : I.CreateRequest {
             {
                 variables = {
-                    update_delay_seconds = MINIMUM_DELAY_SECONDS;
-                    update_followee = DEFAULT_NEURON_FOLLOWEE;
+                    update_delay = #Default;
+                    update_followee = #Default;
                     update_dissolving = #KeepLocked;
                 };
             };
@@ -487,7 +482,11 @@ module {
                     };
                     case (#KeepLocked) {
                         let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return true;
-                        let delayToSet = nodeMem.variables.update_delay_seconds;
+                        let delayToSet : Nat64 = switch (nodeMem.variables.update_delay) {
+                            case (#Default) { 0 };
+                            case (#DelaySeconds(delay)) { delay };
+                        };
+
                         return delayToSet > cachedDelay + DELAY_BUFFER_SECONDS;
                     };
                 };
@@ -495,7 +494,10 @@ module {
 
             public func followee_changed(nodeMem : Ver1.NodeMem, topic : Int32) : Bool {
                 let currentFollowees = Map.fromIter<Int32, GovT.Followees>(nodeMem.cache.followees.vals(), Map.i32hash);
-                let followeeToSet = nodeMem.variables.update_followee;
+                let followeeToSet : Nat64 = switch (nodeMem.variables.update_followee) {
+                    case (#Default) { DEFAULT_NEURON_FOLLOWEE };
+                    case (#FolloweeId(followee)) { followee };
+                };
 
                 switch (Map.get(currentFollowees, Map.i32hash, topic)) {
                     case (?{ followees }) {
@@ -561,14 +563,19 @@ module {
 
                     let nowSecs = U.now() / 1_000_000_000;
 
-                    let delayToSet = Nat64.min(
-                        Nat64.max(nodeMem.variables.update_delay_seconds, MINIMUM_DELAY_SECONDS),
+                    let delayToSet : Nat64 = switch (nodeMem.variables.update_delay) {
+                        case (#Default) { 0 };
+                        case (#DelaySeconds(delay)) { delay };
+                    };
+
+                    let cleanedDelay = Nat64.min(
+                        Nat64.max(delayToSet, MINIMUM_DELAY_SECONDS),
                         MAXIMUM_DELAY_SECONDS,
                     );
 
-                    nodeMem.variables.update_delay_seconds := delayToSet;
+                    nodeMem.variables.update_delay := #DelaySeconds(cleanedDelay);
 
-                    switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = nowSecs + delayToSet })) {
+                    switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = nowSecs + cleanedDelay })) {
                         case (#ok(_)) {
                             NodeUtils.log_activity(nodeMem, "update_delay", #Ok);
                         };
@@ -591,9 +598,12 @@ module {
                             });
                         });
 
-                        let followeeToSet = if (nodeMem.variables.update_followee == 0) DEFAULT_NEURON_FOLLOWEE else nodeMem.variables.update_followee;
+                        let followeeToSet : Nat64 = switch (nodeMem.variables.update_followee) {
+                            case (#Default) { DEFAULT_NEURON_FOLLOWEE };
+                            case (#FolloweeId(followee)) { followee };
+                        };
 
-                        nodeMem.variables.update_followee := followeeToSet;
+                        nodeMem.variables.update_followee := #FolloweeId(followeeToSet);
 
                         switch (await* neuron.follow({ topic = topic; followee = followeeToSet })) {
                             case (#ok(_)) {

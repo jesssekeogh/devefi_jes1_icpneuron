@@ -15,8 +15,8 @@ describe("Message", () => {
     manager = await Manager.beforeAll();
 
     node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolveDelay: MINIMUM_DISSOLVE_DELAY,
-      followee: MOCK_FOLLOWEE_TO_SET,
+      dissolveDelay: { DelaySeconds: MINIMUM_DISSOLVE_DELAY },
+      followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
       dissolving: { KeepLocked: null },
     });
   });
@@ -92,12 +92,19 @@ describe("Message", () => {
     }
     await manager.stopNnsCanister();
     await manager.advanceBlocksAndTimeMinutes(3);
-    await manager.modifyNode(node.id, [], [MOCK_FOLLOWEE_TO_SET_2], []);
+    await manager.modifyNode(
+      node.id,
+      [],
+      [{ FolloweeId: MOCK_FOLLOWEE_TO_SET_2 }],
+      []
+    );
     await manager.advanceBlocksAndTimeMinutes(5);
 
     node = await manager.getNode(node.id);
-    expect(node.custom[0].devefi_jes1_icpneuron.variables.update_followee).toBe(
-      MOCK_FOLLOWEE_TO_SET_2 // should have new
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.variables.update_followee
+    ).toEqual(
+      { FolloweeId: MOCK_FOLLOWEE_TO_SET_2 } // should have new
     );
     for (let followee of node.custom[0].devefi_jes1_icpneuron.cache.followees) {
       expect(followee[1].followees[0].id).toBe(MOCK_FOLLOWEE_TO_SET); // should still be old
