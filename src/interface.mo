@@ -1,5 +1,3 @@
-import GovT "mo:neuro/interfaces/nns_interface";
-
 module {
 
     public type CreateRequest = {
@@ -47,11 +45,11 @@ module {
         maturity_e8s_equivalent : ?Nat64;
         cached_neuron_stake_e8s : ?Nat64;
         created_timestamp_seconds : ?Nat64;
-        followees : [(Int32, GovT.Followees)];
+        followees : [(Int32, { followees : [{ id : Nat64 }] })];
         dissolve_delay_seconds : ?Nat64;
         state : ?Int32;
         voting_power : ?Nat64;
         age_seconds : ?Nat64;
     };
 
-}
+};
