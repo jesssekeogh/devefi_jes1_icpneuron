@@ -1,6 +1,5 @@
 import Map "mo:map/Map";
 import MU "mo:mosup";
-import GovT "mo:neuro/interfaces/nns_interface";
 
 module {
 
@@ -43,7 +42,7 @@ module {
         var maturity_e8s_equivalent : ?Nat64;
         var cached_neuron_stake_e8s : ?Nat64;
         var created_timestamp_seconds : ?Nat64;
-        var followees : [(Int32, GovT.Followees)];
+        var followees : [(Int32, { followees : [{ id : Nat64 }] })];
         var dissolve_delay_seconds : ?Nat64;
         var state : ?Int32;
         var voting_power : ?Nat64;
