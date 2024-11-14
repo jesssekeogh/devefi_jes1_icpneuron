@@ -13,24 +13,41 @@ module {
 
     public type NodeMem = {
         variables : {
-            var update_delay : UpdateDelay;
-            var update_followee : UpdateFollowee;
-            var update_dissolving : UpdateDissolving;
+            var dissolve_delay : DissolveDelay;
+            var dissolve_status : DissolveStatus;
+            var followee : Followee;
         };
         internals : {
-            var updating : Updating;
+            var updating : UpdatingStatus;
             var local_idx : Nat32;
             var refresh_idx : ?Nat64;
             var spawning_neurons : [NeuronCache];
-            var activity_log : [Activity];
         };
         cache : NeuronCache;
+        var log : [Activity];
     };
 
-    public type UpdateDelay = { #Default; #DelaySeconds : Nat64 };
-    public type UpdateFollowee = { #Default; #FolloweeId : Nat64 };
-    public type UpdateDissolving = { #StartDissolving; #KeepLocked };
-    public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
+    public type DissolveDelay = {
+        #Default;
+        #DelayDays : Nat64;
+    };
+
+    public type Followee = {
+        #Default;
+        #FolloweeId : Nat64;
+    };
+
+    public type DissolveStatus = {
+        #Dissolving;
+        #Locked;
+    };
+
+    public type UpdatingStatus = {
+        #Init;
+        #Calling : Nat64;
+        #Done : Nat64;
+    };
+
     public type Activity = {
         #Ok : { operation : Text; timestamp : Nat64 };
         #Err : { operation : Text; msg : Text; timestamp : Nat64 };
