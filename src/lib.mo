@@ -61,14 +61,17 @@ module {
         // Maximum number of activities to keep in the main neuron's activity log
         let ACTIVITY_LOG_LIMIT : Nat = 10;
 
+        // Used to calculate days as seconds for delay inputs
+        let ONE_DAY_SECONDS : Nat64 = 24 * 60 * 60;
+
         // Minimum dissolve delay to vote and earn rewards
-        let MINIMUM_DELAY_SECONDS : Nat64 = (184 * 24 * 60 * 60);
+        let MINIMUM_DELAY_SECONDS : Nat64 = (184 * ONE_DAY_SECONDS);
 
         // Minimum allowable delay increase, defined as a buffer of two weeks (in seconds)
-        let DELAY_BUFFER_SECONDS : Nat64 = (14 * 24 * 60 * 60);
+        let DELAY_BUFFER_SECONDS : Nat64 = (14 * ONE_DAY_SECONDS);
 
         // From here: https://github.com/dfinity/ic/blob/master/rs/nervous_system/common/src/lib.rs#L67C15-L67C27
-        let ONE_YEAR_SECONDS : Nat64 = (4 * 365 + 1) * (24 * 60 * 60) / 4;
+        let ONE_YEAR_SECONDS : Nat64 = (4 * 365 + 1) * ONE_DAY_SECONDS / 4;
 
         // From here: https://github.com/dfinity/ic/blob/master/rs/nns/governance/src/governance.rs#L164
         let MAXIMUM_DELAY_SECONDS : Nat64 = 8 * ONE_YEAR_SECONDS;
@@ -100,14 +103,20 @@ module {
                 ledger_slots = [
                     "Neuron"
                 ];
-                billing = {
-                    cost_per_day = 0;
-                    transaction_fee = #transaction_percentage_fee_e8s(5_000_000); // 5% fee
-                };
+                billing = [
+                    {
+                        cost_per_day = 0;
+                        transaction_fee = #transaction_percentage_fee_e8s(5_000_000); // 5% fee
+                    },
+                    {
+                        cost_per_day = 3_1700_0000; // 3.17
+                        transaction_fee = #none;
+                    },
+                ];
                 sources = sources(0);
                 destinations = destinations(0);
                 author_account = {
-                    owner = Principal.fromText("einw2-uqaaa-aaaar-qagkq-cai");
+                    owner = Principal.fromText("jv4ws-fbili-a35rv-xd7a5-xwvxw-trink-oluun-g7bcp-oq5f6-35cba-vqe");
                     subaccount = null;
                 };
                 temporary_allowed = true;
@@ -119,6 +128,7 @@ module {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
                 if (Option.isSome(vec.billing.expires)) continue vec_loop; // don't allow staking until fee paid
                 if (not vec.active) continue vec_loop;
+
                 Run.single(vid, vec, nodeMem);
             };
         };
@@ -128,29 +138,27 @@ module {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
                 if (Option.isSome(vec.billing.expires)) continue vec_loop;
                 if (not vec.active) continue vec_loop;
-                await* Run.singleAsync(vid, vec, nodeMem);
+
+                if (NodeUtils.node_ready(nodeMem)) {
+                    await* Run.singleAsync(vid, vec, nodeMem);
+                    return; // return after finding the first ready node
+                };
             };
         };
 
         module Run {
             public func single(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : () {
                 let ?sourceStake = core.getSource(vid, vec, 0) else return;
-                let ?sourceMaturity = core.getSource(vid, vec, 1) else return;
-
-                // fee is the same
-                let fee = core.Source.fee(sourceStake);
-
                 let stakeBal = core.Source.balance(sourceStake);
-                let maturityBal = core.Source.balance(sourceMaturity);
                 let neuronSubaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), NodeUtils.get_neuron_nonce(vid, 0));
 
                 // If a neuron exists, a smaller amount is required for increasing the existing stake.
                 // If no neuron exists, enforce the minimum stake requirement (plus fee) to create a new neuron.
-                let requiredStake = if (Option.isSome(nodeMem.cache.neuron_id)) fee else MINIMUM_STAKE;
+                let requiredStake = if (Option.isSome(nodeMem.cache.neuron_id)) core.Source.fee(sourceStake) else MINIMUM_STAKE;
 
                 if (stakeBal > requiredStake) {
                     // Proceed to send ICP to the neuron's subaccount
-                    let #ok(txId) = core.Source.send(
+                    let #ok(intent) = core.Source.Send.intent(
                         sourceStake,
                         #external_account({
                             owner = NNS_CANISTER_ID;
@@ -159,32 +167,39 @@ module {
                         stakeBal,
                     ) else return;
 
+                    let txId = core.Source.Send.commit(intent);
+
                     // Set refresh_idx to refresh or claim the neuron in the next round
                     NodeUtils.tx_sent(nodeMem, txId);
                 };
 
                 // forward all maturity
-                if (maturityBal > fee) {
-                    ignore core.Source.send(sourceMaturity, #destination({ port = 0 }), maturityBal);
-                };
+                let ?sourceMaturity = core.getSource(vid, vec, 1) else return;
+                let maturityBal = core.Source.balance(sourceMaturity);
+
+                let #ok(intent) = core.Source.Send.intent(
+                    sourceMaturity,
+                    #destination({ port = 0 }),
+                    maturityBal,
+                ) else return;
+
+                ignore core.Source.Send.commit(intent);
             };
 
             public func singleAsync(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : async* () {
                 try {
-                    if (NodeUtils.node_ready(nodeMem)) {
-                        await* NeuronActions.refresh_neuron(nodeMem, vid);
-                        await* NeuronActions.update_delay(nodeMem);
-                        await* NeuronActions.update_followees(nodeMem);
-                        await* NeuronActions.update_dissolving(nodeMem);
-                        await* NeuronActions.spawn_maturity(nodeMem, vid);
-                        await* NeuronActions.claim_maturity(nodeMem, vec);
-                        await* NeuronActions.disburse_neuron(nodeMem, vec.refund);
-                        await* CacheManager.refresh_cache(nodeMem, vid);
-                    };
+                    await* NeuronActions.refresh_neuron(nodeMem, vid);
+                    await* NeuronActions.update_delay(nodeMem);
+                    await* NeuronActions.update_followees(nodeMem);
+                    await* NeuronActions.update_dissolving(nodeMem);
+                    await* NeuronActions.spawn_maturity(nodeMem, vid);
+                    await* NeuronActions.claim_maturity(nodeMem, vec);
+                    await* NeuronActions.disburse_neuron(nodeMem, vec);
+                    await* CacheManager.refresh_cache(nodeMem, vid);
                 } catch (err) {
                     NodeUtils.log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
                 } finally {
-                    // `finally` is necessary as internal traps aren't caught by `catch`
+                    // finally is necessary as internal traps aren't caught by `catch`
                     // It always runs to update `nodeMem.internals.updating`
                     NodeUtils.node_done(nodeMem);
                 };
@@ -194,16 +209,15 @@ module {
         public func create(id : T.NodeId, _req : T.CommonCreateRequest, t : I.CreateRequest) : T.Create {
             let obj : M.NodeMem = {
                 variables = {
-                    var update_delay = t.variables.update_delay;
-                    var update_followee = t.variables.update_followee;
-                    var update_dissolving = t.variables.update_dissolving;
+                    var dissolve_delay = t.variables.dissolve_delay;
+                    var dissolve_status = t.variables.dissolve_status;
+                    var followee = t.variables.followee;
                 };
                 internals = {
                     var updating = #Init;
                     var local_idx = 0;
                     var refresh_idx = null;
                     var spawning_neurons = [];
-                    var activity_log = [];
                 };
                 cache = {
                     var neuron_id = null;
@@ -217,6 +231,7 @@ module {
                     var voting_power = null;
                     var age_seconds = null;
                 };
+                var log = [];
             };
             ignore Map.put(mem.main, Map.n32hash, id, obj);
             #ok(ID);
@@ -241,9 +256,9 @@ module {
         public func modify(id : T.NodeId, m : I.ModifyRequest) : T.Modify {
             let ?t = Map.get(mem.main, Map.n32hash, id) else return #err("Not found");
 
-            t.variables.update_delay := Option.get(m.update_delay, t.variables.update_delay);
-            t.variables.update_followee := Option.get(m.update_followee, t.variables.update_followee);
-            t.variables.update_dissolving := Option.get(m.update_dissolving, t.variables.update_dissolving);
+            t.variables.dissolve_delay := Option.get(m.dissolve_delay, t.variables.dissolve_delay);
+            t.variables.dissolve_status := Option.get(m.dissolve_status, t.variables.dissolve_status);
+            t.variables.followee := Option.get(m.followee, t.variables.followee);
             #ok();
         };
 
@@ -252,9 +267,9 @@ module {
 
             #ok {
                 variables = {
-                    update_delay = t.variables.update_delay;
-                    update_followee = t.variables.update_followee;
-                    update_dissolving = t.variables.update_dissolving;
+                    dissolve_delay = t.variables.dissolve_delay;
+                    dissolve_status = t.variables.dissolve_status;
+                    followee = t.variables.followee;
                 };
                 internals = {
                     updating = t.internals.updating;
@@ -277,7 +292,6 @@ module {
                             };
                         },
                     );
-                    activity_log = t.internals.activity_log;
                 };
                 cache = {
                     neuron_id = t.cache.neuron_id;
@@ -291,15 +305,16 @@ module {
                     voting_power = t.cache.voting_power;
                     age_seconds = t.cache.age_seconds;
                 };
+                log = t.log;
             };
         };
 
         public func defaults() : I.CreateRequest {
             {
                 variables = {
-                    update_delay = #Default;
-                    update_followee = #Default;
-                    update_dissolving = #KeepLocked;
+                    dissolve_delay = #Default;
+                    dissolve_status = #Locked;
+                    followee = #Default;
                 };
             };
         };
@@ -309,7 +324,7 @@ module {
         };
 
         public func destinations(_id : T.NodeId) : T.Endpoints {
-            [(0, "Maturity")];
+            [(0, "Maturity"), (0, "Disburse")];
         };
 
         let nns = NNS.Governance({
@@ -361,22 +376,22 @@ module {
             };
 
             public func log_activity(nodeMem : Ver1.NodeMem, operation : Text, result : { #Ok; #Err : Text }) : () {
-                let activityLog = Buffer.fromArray<Ver1.Activity>(nodeMem.internals.activity_log);
+                let log = Buffer.fromArray<Ver1.Activity>(nodeMem.log);
 
                 switch (result) {
                     case (#Ok(())) {
-                        activityLog.add(#Ok({ operation = operation; timestamp = U.now() }));
+                        log.add(#Ok({ operation = operation; timestamp = U.now() }));
                     };
                     case (#Err(msg)) {
-                        activityLog.add(#Err({ operation = operation; msg = msg; timestamp = U.now() }));
+                        log.add(#Err({ operation = operation; msg = msg; timestamp = U.now() }));
                     };
                 };
 
-                if (activityLog.size() > ACTIVITY_LOG_LIMIT) {
-                    ignore activityLog.remove(0); // remove 1 item from the beginning
+                if (log.size() > ACTIVITY_LOG_LIMIT) {
+                    ignore log.remove(0); // remove 1 item from the beginning
                 };
 
-                nodeMem.internals.activity_log := Buffer.toArray(activityLog);
+                nodeMem.log := Buffer.toArray(log);
             };
 
             public func get_neuron_nonce(vid : T.NodeId, localId : Nat32) : Nat64 {
@@ -476,15 +491,15 @@ module {
             };
 
             public func delay_changed(nodeMem : Ver1.NodeMem) : Bool {
-                switch (nodeMem.variables.update_dissolving) {
-                    case (#StartDissolving) {
+                switch (nodeMem.variables.dissolve_status) {
+                    case (#Dissolving) {
                         return false; // don't update delay if dissolving
                     };
-                    case (#KeepLocked) {
+                    case (#Locked) {
                         let ?cachedDelay = nodeMem.cache.dissolve_delay_seconds else return true;
-                        let delayToSet : Nat64 = switch (nodeMem.variables.update_delay) {
+                        let delayToSet : Nat64 = switch (nodeMem.variables.dissolve_delay) {
                             case (#Default) { MINIMUM_DELAY_SECONDS };
-                            case (#DelaySeconds(delay)) { delay };
+                            case (#DelayDays(days)) { days * ONE_DAY_SECONDS };
                         };
 
                         return delayToSet > cachedDelay + DELAY_BUFFER_SECONDS;
@@ -494,7 +509,7 @@ module {
 
             public func followee_changed(nodeMem : Ver1.NodeMem, topic : Int32) : Bool {
                 let currentFollowees = Map.fromIter<Int32, GovT.Followees>(nodeMem.cache.followees.vals(), Map.i32hash);
-                let followeeToSet : Nat64 = switch (nodeMem.variables.update_followee) {
+                let followeeToSet : Nat64 = switch (nodeMem.variables.followee) {
                     case (#Default) { DEFAULT_NEURON_FOLLOWEE };
                     case (#FolloweeId(followee)) { followee };
                 };
@@ -510,11 +525,11 @@ module {
             public func dissolving_changed(nodeMem : Ver1.NodeMem) : Bool {
                 let ?dissolvingState = nodeMem.cache.state else return false;
 
-                switch (nodeMem.variables.update_dissolving) {
-                    case (#StartDissolving) {
+                switch (nodeMem.variables.dissolve_status) {
+                    case (#Dissolving) {
                         return dissolvingState == NEURON_STATES.locked;
                     };
-                    case (#KeepLocked) {
+                    case (#Locked) {
                         return dissolvingState == NEURON_STATES.dissolving;
                     };
                 };
@@ -563,9 +578,9 @@ module {
 
                     let nowSecs = U.now() / 1_000_000_000;
 
-                    let delayToSet : Nat64 = switch (nodeMem.variables.update_delay) {
+                    let delayToSet : Nat64 = switch (nodeMem.variables.dissolve_delay) {
                         case (#Default) { MINIMUM_DELAY_SECONDS };
-                        case (#DelaySeconds(delay)) { delay };
+                        case (#DelayDays(days)) { days * ONE_DAY_SECONDS };
                     };
 
                     let cleanedDelay = Nat64.min(
@@ -573,7 +588,7 @@ module {
                         MAXIMUM_DELAY_SECONDS,
                     );
 
-                    nodeMem.variables.update_delay := #DelaySeconds(cleanedDelay);
+                    nodeMem.variables.dissolve_delay := #DelayDays(cleanedDelay / ONE_DAY_SECONDS);
 
                     switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = nowSecs + cleanedDelay })) {
                         case (#ok(_)) {
@@ -598,12 +613,12 @@ module {
                             });
                         });
 
-                        let followeeToSet : Nat64 = switch (nodeMem.variables.update_followee) {
+                        let followeeToSet : Nat64 = switch (nodeMem.variables.followee) {
                             case (#Default) { DEFAULT_NEURON_FOLLOWEE };
                             case (#FolloweeId(followee)) { followee };
                         };
 
-                        nodeMem.variables.update_followee := #FolloweeId(followeeToSet);
+                        nodeMem.variables.followee := #FolloweeId(followeeToSet);
 
                         switch (await* neuron.follow({ topic = topic; followee = followeeToSet })) {
                             case (#ok(_)) {
@@ -626,8 +641,8 @@ module {
                         neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                     });
 
-                    switch (nodeMem.variables.update_dissolving) {
-                        case (#StartDissolving) {
+                    switch (nodeMem.variables.dissolve_status) {
+                        case (#Dissolving) {
                             switch (await* neuron.startDissolving()) {
                                 case (#ok(_)) {
                                     NodeUtils.log_activity(nodeMem, "start_dissolving", #Ok);
@@ -637,7 +652,7 @@ module {
                                 };
                             };
                         };
-                        case (#KeepLocked) {
+                        case (#Locked) {
                             switch (await* neuron.stopDissolving()) {
                                 case (#ok(_)) {
                                     NodeUtils.log_activity(nodeMem, "stop_dissolving", #Ok);
@@ -692,7 +707,13 @@ module {
                             );
                         });
 
-                        let ?account = core.getSourceAccountIC(vec, 1) else return;
+                        let destination = if (vec.billing.billing_option == 1) {
+                            core.getDestinationAccountIC(vec, 0);
+                        } else {
+                            core.getSourceAccountIC(vec, 1);
+                        };
+
+                        let ?account = destination else return;
 
                         switch (await* neuron.disburse({ to_account = ?{ hash = Principal.toLedgerAccount(account.owner, account.subaccount) }; amount = null })) {
                             case (#ok(_)) {
@@ -706,14 +727,14 @@ module {
                 };
             };
 
-            public func disburse_neuron(nodeMem : Ver1.NodeMem, refund : Core.Account) : async* () {
+            public func disburse_neuron(nodeMem : Ver1.NodeMem, vec : T.NodeCoreMem) : async* () {
                 let ?neuron_id = nodeMem.cache.neuron_id else return;
                 let ?dissolvingState = nodeMem.cache.state else return;
                 let ?cachedStake = nodeMem.cache.cached_neuron_stake_e8s else return;
 
-                let userWantsToDisburse = switch (nodeMem.variables.update_dissolving) {
-                    case (#StartDissolving) { true };
-                    case (#KeepLocked) { false };
+                let userWantsToDisburse = switch (nodeMem.variables.dissolve_status) {
+                    case (#Dissolving) { true };
+                    case (#Locked) { false };
                 };
 
                 if (userWantsToDisburse and dissolvingState == NEURON_STATES.unlocked and cachedStake > 0) {
@@ -722,7 +743,9 @@ module {
                         neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                     });
 
-                    switch (await* neuron.disburse({ to_account = ?{ hash = Principal.toLedgerAccount(refund.owner, refund.subaccount) }; amount = null })) {
+                    let ?account = core.getDestinationAccountIC(vec, 1) else return;
+
+                    switch (await* neuron.disburse({ to_account = ?{ hash = Principal.toLedgerAccount(account.owner, account.subaccount) }; amount = null })) {
                         case (#ok(_)) {
                             NodeUtils.log_activity(nodeMem, "disburse_neuron", #Ok);
                         };
