@@ -1,42 +1,35 @@
+import Ver1 "./memory/v1";
+
 module {
 
     public type CreateRequest = {
         variables : {
-            update_delay : UpdateDelay;
-            update_followee : UpdateFollowee;
-            update_dissolving : UpdateDissolving;
+            dissolve_delay : Ver1.DissolveDelay;
+            dissolve_status : Ver1.DissolveStatus;
+            followee : Ver1.Followee;
         };
     };
 
     public type ModifyRequest = {
-        update_delay : ?UpdateDelay;
-        update_followee : ?UpdateFollowee;
-        update_dissolving : ?UpdateDissolving;
+        dissolve_delay : ?Ver1.DissolveDelay;
+        dissolve_status : ?Ver1.DissolveStatus;
+        followee : ?Ver1.Followee;
     };
 
     public type Shared = {
         variables : {
-            update_delay : UpdateDelay;
-            update_followee : UpdateFollowee;
-            update_dissolving : UpdateDissolving;
+            dissolve_delay : Ver1.DissolveDelay;
+            dissolve_status : Ver1.DissolveStatus;
+            followee : Ver1.Followee;
         };
         internals : {
-            updating : Updating;
+            updating : Ver1.UpdatingStatus;
             local_idx : Nat32;
             refresh_idx : ?Nat64;
             spawning_neurons : [SharedNeuronCache];
-            activity_log : [Activity];
         };
         cache : SharedNeuronCache;
-    };
-
-    public type UpdateDelay = { #Default; #DelaySeconds : Nat64 };
-    public type UpdateFollowee = { #Default; #FolloweeId : Nat64 };
-    public type UpdateDissolving = { #StartDissolving; #KeepLocked };
-    public type Updating = { #Init; #Calling : Nat64; #Done : Nat64 };
-    public type Activity = {
-        #Ok : { operation : Text; timestamp : Nat64 };
-        #Err : { operation : Text; msg : Text; timestamp : Nat64 };
+        log : [Ver1.Activity];
     };
 
     public type SharedNeuronCache = {

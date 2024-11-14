@@ -7,11 +7,12 @@ keywords = [ "devefi", "neuron", "stake", "icp" ]
 license = ""
 
 [dependencies]
-base = "0.13.2"
-devefi = "0.3.16"
+base = "0.13.3"
+devefi = "0.3.18"
 neuro = "0.7.1"
 map = "9.0.1"
 vector = "0.4.1"
 
 [dev-dependencies]
 test = "2.0.0"
+bench = "1.0.0"
