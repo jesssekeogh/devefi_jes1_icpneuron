@@ -1,4 +1,5 @@
 import Ver1 "./memory/v1";
+import GovT "mo:neuro/interfaces/nns_interface";
 
 module {
 
@@ -44,5 +45,9 @@ module {
         voting_power : ?Nat64;
         age_seconds : ?Nat64;
     };
+    
+    public type Neuron = GovT.Neuron;
+
+    public type NeuronInfo = GovT.NeuronInfo;
 
 };
