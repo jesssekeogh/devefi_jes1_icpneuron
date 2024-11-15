@@ -1,7 +1,6 @@
 import U "mo:devefi/utils";
 import MU "mo:mosup";
 import Map "mo:map/Map";
-import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import Option "mo:base/Option";
@@ -10,10 +9,8 @@ import Blob "mo:base/Blob";
 import Error "mo:base/Error";
 import Buffer "mo:base/Buffer";
 import Core "mo:devefi/core";
-import Vector "mo:vector/Class";
 import Ver1 "./memory/v1";
 import I "./interface";
-import GovT "mo:neuro/interfaces/nns_interface";
 import { NNS } "mo:neuro";
 import Tools "mo:neuro/tools";
 
@@ -126,9 +123,8 @@ module {
         public func run() : () {
             label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
-                if (Option.isSome(vec.billing.expires)) continue vec_loop; // don't allow staking until fee paid
                 if (not vec.active) continue vec_loop;
-
+                if (Option.isSome(vec.billing.expires)) continue vec_loop; // don't allow staking until fee paid
                 Run.single(vid, vec, nodeMem);
             };
         };
@@ -136,9 +132,8 @@ module {
         public func runAsync() : async* () {
             label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
-                if (Option.isSome(vec.billing.expires)) continue vec_loop;
                 if (not vec.active) continue vec_loop;
-
+                if (Option.isSome(vec.billing.expires)) continue vec_loop;
                 if (NodeUtils.node_ready(nodeMem)) {
                     await* Run.singleAsync(vid, vec, nodeMem);
                     return; // return after finding the first ready node
@@ -177,9 +172,21 @@ module {
                 let ?sourceMaturity = core.getSource(vid, vec, 1) else return;
                 let maturityBal = core.Source.balance(sourceMaturity);
 
+                // if cost per day billing option chosen, send maturity with no tx fee
+                let maturityDestination = switch (vec.billing.billing_option) {
+                    case (1) {
+                        let ?account = core.Source.getAccount(sourceMaturity) else return;
+                        #external_account({
+                            owner = account.owner;
+                            subaccount = account.subaccount;
+                        });
+                    };
+                    case (_) { #destination({ port = 0 }) };
+                };
+
                 let #ok(intent) = core.Source.Send.intent(
                     sourceMaturity,
-                    #destination({ port = 0 }),
+                    maturityDestination,
                     maturityBal,
                 ) else return;
 
@@ -199,15 +206,13 @@ module {
                 } catch (err) {
                     NodeUtils.log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
                 } finally {
-                    // finally is necessary as internal traps aren't caught by `catch`
-                    // It always runs to update `nodeMem.internals.updating`
                     NodeUtils.node_done(nodeMem);
                 };
             };
         };
 
-        public func create(id : T.NodeId, _req : T.CommonCreateRequest, t : I.CreateRequest) : T.Create {
-            let obj : M.NodeMem = {
+        public func create(vid : T.NodeId, _req : T.CommonCreateRequest, t : I.CreateRequest) : T.Create {
+            let nodeMem : M.NodeMem = {
                 variables = {
                     var dissolve_delay = t.variables.dissolve_delay;
                     var dissolve_status = t.variables.dissolve_status;
@@ -233,12 +238,12 @@ module {
                 };
                 var log = [];
             };
-            ignore Map.put(mem.main, Map.n32hash, id, obj);
+            ignore Map.put(mem.main, Map.n32hash, vid, nodeMem);
             #ok(ID);
         };
 
-        public func delete(id : T.NodeId) : T.Delete {
-            let ?t = Map.get(mem.main, Map.n32hash, id) else return #err("Not found");
+        public func delete(vid : T.NodeId) : T.Delete {
+            let ?t = Map.get(mem.main, Map.n32hash, vid) else return #err("Node not found for ID: " # debug_show vid);
 
             let shouldDelete = switch (t.cache.cached_neuron_stake_e8s) {
                 case (?cachedStake) { if (cachedStake > 0) false else true };
@@ -246,15 +251,15 @@ module {
             };
 
             if (shouldDelete) {
-                ignore Map.remove(mem.main, Map.n32hash, id);
+                ignore Map.remove(mem.main, Map.n32hash, vid);
                 return #ok();
             };
 
             return #err("Neuron is not empty");
         };
 
-        public func modify(id : T.NodeId, m : I.ModifyRequest) : T.Modify {
-            let ?t = Map.get(mem.main, Map.n32hash, id) else return #err("Not found");
+        public func modify(vid : T.NodeId, m : I.ModifyRequest) : T.Modify {
+            let ?t = Map.get(mem.main, Map.n32hash, vid) else return #err("Node not found for ID: " # debug_show vid);
 
             t.variables.dissolve_delay := Option.get(m.dissolve_delay, t.variables.dissolve_delay);
             t.variables.dissolve_status := Option.get(m.dissolve_status, t.variables.dissolve_status);
@@ -262,8 +267,8 @@ module {
             #ok();
         };
 
-        public func get(id : T.NodeId, _vec : T.NodeCoreMem) : T.Get<I.Shared> {
-            let ?t = Map.get(mem.main, Map.n32hash, id) else return #err("Not found");
+        public func get(vid : T.NodeId, _vec : T.NodeCoreMem) : T.Get<I.Shared> {
+            let ?t = Map.get(mem.main, Map.n32hash, vid) else return #err("Node not found for ID: " # debug_show vid);
 
             #ok {
                 variables = {
@@ -410,12 +415,12 @@ module {
                     include_empty = false; // don't fetch empty neurons (set to true in testing)
                 });
 
-                let neuronInfos = Map.fromIter<Nat64, GovT.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
+                let neuronInfos = Map.fromIter<Nat64, I.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
 
-                let fullNeurons = Map.fromIterMap<Blob, GovT.Neuron, GovT.Neuron>(
+                let fullNeurons = Map.fromIterMap<Blob, I.Neuron, I.Neuron>(
                     full_neurons.vals(),
                     Map.bhash,
-                    func(neuron : GovT.Neuron) : ?(Blob, GovT.Neuron) {
+                    func(neuron : I.Neuron) : ?(Blob, I.Neuron) {
                         return ?(Blob.fromArray(neuron.account), neuron);
                     },
                 );
@@ -426,8 +431,8 @@ module {
 
             private func update_neuron_cache(
                 nodeMem : Ver1.NodeMem,
-                neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>,
-                fullNeurons : Map.Map<Blob, GovT.Neuron>,
+                neuronInfos : Map.Map<Nat64, I.NeuronInfo>,
+                fullNeurons : Map.Map<Blob, I.Neuron>,
             ) : () {
                 let ?nid = nodeMem.cache.neuron_id else return;
                 let ?nonce = nodeMem.cache.nonce else return;
@@ -452,10 +457,10 @@ module {
             private func update_spawning_neurons_cache(
                 nodeMem : Ver1.NodeMem,
                 vid : Nat32,
-                neuronInfos : Map.Map<Nat64, GovT.NeuronInfo>,
-                fullNeurons : Map.Map<Blob, GovT.Neuron>,
+                neuronInfos : Map.Map<Nat64, I.NeuronInfo>,
+                fullNeurons : Map.Map<Blob, I.Neuron>,
             ) : () {
-                let spawningNeurons = Vector.Vector<Ver1.NeuronCache>();
+                let spawningNeurons = Buffer.Buffer<Ver1.NeuronCache>(7); // likely max of 7 neurons (one per day)
 
                 // finds neurons that this vector owner has created and adds them to the cache
                 // start at 1, 0 is reserved for the vectors main neuron
@@ -487,7 +492,7 @@ module {
                     idx += 1;
                 };
 
-                nodeMem.internals.spawning_neurons := Vector.toArray(spawningNeurons);
+                nodeMem.internals.spawning_neurons := Buffer.toArray(spawningNeurons);
             };
 
             public func delay_changed(nodeMem : Ver1.NodeMem) : Bool {
@@ -508,7 +513,7 @@ module {
             };
 
             public func followee_changed(nodeMem : Ver1.NodeMem, topic : Int32) : Bool {
-                let currentFollowees = Map.fromIter<Int32, GovT.Followees>(nodeMem.cache.followees.vals(), Map.i32hash);
+                let currentFollowees = Map.fromIter<Int32, { followees : [{ id : Nat64 }] }>(nodeMem.cache.followees.vals(), Map.i32hash);
                 let followeeToSet : Nat64 = switch (nodeMem.variables.followee) {
                     case (#Default) { DEFAULT_NEURON_FOLLOWEE };
                     case (#FolloweeId(followee)) { followee };
@@ -707,13 +712,8 @@ module {
                             );
                         });
 
-                        let destination = if (vec.billing.billing_option == 1) {
-                            core.getDestinationAccountIC(vec, 0);
-                        } else {
-                            core.getSourceAccountIC(vec, 1);
-                        };
-
-                        let ?account = destination else return;
+                        // send maturity to the maturity source
+                        let ?account = core.getSourceAccountIC(vec, 1) else return;
 
                         switch (await* neuron.disburse({ to_account = ?{ hash = Principal.toLedgerAccount(account.owner, account.subaccount) }; amount = null })) {
                             case (#ok(_)) {

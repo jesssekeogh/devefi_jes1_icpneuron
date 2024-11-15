@@ -52,7 +52,7 @@ module {
         #Ok : { operation : Text; timestamp : Nat64 };
         #Err : { operation : Text; msg : Text; timestamp : Nat64 };
     };
-
+    
     public type NeuronCache = {
         var neuron_id : ?Nat64;
         var nonce : ?Nat64;
