@@ -37,12 +37,9 @@ export const EXPECTED_TRANSACTION_FEES: bigint = ICP_TRANSACTION_FEE * 2n;
 export const AMOUNT_TO_STAKE: bigint =
   EXPECTED_STAKE + EXPECTED_TRANSACTION_FEES;
 
-export const MINIMUM_DISSOLVE_DELAY: bigint = 15897600n;
+export const MINIMUM_DISSOLVE_DELAY_DAYS: bigint = 184n;
 
-export const ONE_YEAR_SECONDS: bigint =
-  ((4n * 365n + 1n) * (24n * 60n * 60n)) / 4n;
-
-export const MAX_DISSOLVE_DELAY: bigint = 8n * ONE_YEAR_SECONDS;
+export const MAX_DISSOLVE_DELAY_DAYS: bigint = 2922n;
 
 export const MOCK_FOLLOWEE_TO_SET: bigint = 6914974521667616512n;
 

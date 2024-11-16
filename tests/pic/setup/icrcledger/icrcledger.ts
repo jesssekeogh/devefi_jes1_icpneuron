@@ -41,10 +41,13 @@ export async function ICRCLedger(pic: PocketIc, me: Principal) {
     },
   };
 
+  const subnets = pic.getApplicationSubnets();
+
   const fixture = await pic.setupCanister<ICRCLedgerService>({
     idlFactory,
     wasm: WASM_PATH,
     arg: IDL.encode(init({ IDL }), [ledger_args]),
+    targetSubnetId: subnets[0].id,
   });
 
   return fixture;

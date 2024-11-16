@@ -3,8 +3,8 @@ import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
 import {
   AMOUNT_TO_STAKE,
   EXPECTED_TRANSACTION_FEES,
-  MAX_DISSOLVE_DELAY,
-  MINIMUM_DISSOLVE_DELAY,
+  MAX_DISSOLVE_DELAY_DAYS,
+  MINIMUM_DISSOLVE_DELAY_DAYS,
   MOCK_FOLLOWEE_TO_SET,
   MOCK_FOLLOWEE_TO_SET_2,
 } from "../setup/constants.ts";
@@ -17,9 +17,9 @@ describe("Stake", () => {
     manager = await Manager.beforeAll();
 
     node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolveDelay: { DelaySeconds: MINIMUM_DISSOLVE_DELAY },
+      dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
       followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
-      dissolving: { KeepLocked: null },
+      dissolve_status: { Locked: null },
     });
   });
 
@@ -39,11 +39,11 @@ describe("Stake", () => {
   it("should update dissolve delay", async () => {
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
-    ).toBe(MINIMUM_DISSOLVE_DELAY);
+    ).toBe(manager.convertDaysToSeconds(MINIMUM_DISSOLVE_DELAY_DAYS));
 
     await manager.modifyNode(
       node.id,
-      [{ DelaySeconds: MAX_DISSOLVE_DELAY }],
+      [{ DelayDays: MAX_DISSOLVE_DELAY_DAYS }],
       [],
       []
     );
@@ -51,7 +51,7 @@ describe("Stake", () => {
     node = await manager.getNode(node.id);
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
-    ).toBe(MAX_DISSOLVE_DELAY);
+    ).toBe(manager.convertDaysToSeconds(MAX_DISSOLVE_DELAY_DAYS));
   });
 
   it("should update followee", async () => {
@@ -74,9 +74,9 @@ describe("Stake", () => {
     await manager.advanceBlocksAndTimeMinutes(3);
     node = await manager.getNode(node.id);
 
-    expect(
-      node.custom[0].devefi_jes1_icpneuron.variables.update_followee
-    ).toEqual({ FolloweeId: MOCK_FOLLOWEE_TO_SET_2 });
+    expect(node.custom[0].devefi_jes1_icpneuron.variables.followee).toEqual({
+      FolloweeId: MOCK_FOLLOWEE_TO_SET_2,
+    });
     expect(node.custom[0].devefi_jes1_icpneuron.cache.followees).toHaveLength(
       3
     );
@@ -88,35 +88,35 @@ describe("Stake", () => {
 
   it("should update dissolving", async () => {
     expect(
-      node.custom[0].devefi_jes1_icpneuron.variables.update_dissolving
+      node.custom[0].devefi_jes1_icpneuron.variables.dissolve_status
     ).toEqual({
-      KeepLocked: null,
+      Locked: null,
     });
     expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
       manager.getNeuronStates().locked
     );
 
-    await manager.modifyNode(node.id, [], [], [{ StartDissolving: null }]);
+    await manager.modifyNode(node.id, [], [], [{ Dissolving: null }]);
     await manager.advanceBlocksAndTimeMinutes(3);
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom[0].devefi_jes1_icpneuron.variables.update_dissolving
+      node.custom[0].devefi_jes1_icpneuron.variables.dissolve_status
     ).toEqual({
-      StartDissolving: null,
+      Dissolving: null,
     });
     expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
       manager.getNeuronStates().dissolving
     );
 
-    await manager.modifyNode(node.id, [], [], [{ KeepLocked: null }]);
+    await manager.modifyNode(node.id, [], [], [{ Locked: null }]);
     await manager.advanceBlocksAndTimeMinutes(3);
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom[0].devefi_jes1_icpneuron.variables.update_dissolving
+      node.custom[0].devefi_jes1_icpneuron.variables.dissolve_status
     ).toEqual({
-      KeepLocked: null,
+      Locked: null,
     });
     expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
       manager.getNeuronStates().locked
@@ -152,7 +152,7 @@ describe("Stake", () => {
   });
 
   it("should disburse dissolved neuron", async () => {
-    await manager.modifyNode(node.id, [], [], [{ StartDissolving: null }]);
+    await manager.modifyNode(node.id, [], [], [{ Dissolving: null }]);
     await manager.advanceBlocksAndTimeMinutes(3);
     node = await manager.getNode(node.id);
 
@@ -186,9 +186,9 @@ describe("Stake", () => {
 
     await manager.modifyNode(
       node.id,
-      [{ DelaySeconds: MAX_DISSOLVE_DELAY }],
+      [{ DelayDays: MAX_DISSOLVE_DELAY_DAYS }],
       [],
-      [{ KeepLocked: null }]
+      [{ Locked: null }]
     );
     await manager.advanceBlocksAndTimeMinutes(5);
     node = await manager.getNode(node.id);
@@ -198,11 +198,14 @@ describe("Stake", () => {
     ).toBe(AMOUNT_TO_STAKE - EXPECTED_TRANSACTION_FEES);
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
-    ).toBe(MAX_DISSOLVE_DELAY);
+    ).toBe(manager.convertDaysToSeconds(MAX_DISSOLVE_DELAY_DAYS));
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
+      manager.getNeuronStates().locked
+    );
   });
 
   it("should delete node with an empty neuron", async () => {
-    await manager.modifyNode(node.id, [], [], [{ StartDissolving: null }]);
+    await manager.modifyNode(node.id, [], [], [{ Dissolving: null }]);
     await manager.advanceBlocksAndTimeMinutes(3);
     node = await manager.getNode(node.id);
 
@@ -218,6 +221,11 @@ describe("Stake", () => {
     await manager.advanceBlocks(100);
 
     await manager.advanceBlocksAndTimeDays(5);
+    node = await manager.getNode(node.id);
+
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.cache.cached_neuron_stake_e8s[0]
+    ).toBe(0n);
 
     await manager.deleteNode(node.id);
     await expect(manager.getNode(node.id)).rejects.toThrow();

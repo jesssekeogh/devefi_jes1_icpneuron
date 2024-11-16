@@ -21,10 +21,13 @@ const WASM_PATH = resolve(
 );
 
 export async function NNSVector(pic: PocketIc) {
+  const subnets = pic.getApplicationSubnets();
+
   const fixture = await pic.setupCanister<NNSVECTOR>({
     idlFactory,
     wasm: WASM_PATH,
     arg: IDL.encode(PylonInit({ IDL }), []),
+    targetSubnetId: subnets[0].id,
   });
 
   return fixture;
