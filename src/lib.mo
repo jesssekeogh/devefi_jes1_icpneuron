@@ -409,10 +409,10 @@ module {
                 let ?nid = nodeMem.cache.neuron_id else return;
 
                 let { full_neurons; neuron_infos } = await* nns.listNeurons({
-                    neuron_ids = [nid]; // always fetch the main neuron (even if empty)
+                    neuron_ids = [nid];
                     include_readable = true;
                     include_public = true;
-                    include_empty = false; // don't fetch empty neurons (set to true in testing)
+                    include_empty = true;
                 });
 
                 let neuronInfos = Map.fromIter<Nat64, I.NeuronInfo>(neuron_infos.vals(), Map.n64hash);

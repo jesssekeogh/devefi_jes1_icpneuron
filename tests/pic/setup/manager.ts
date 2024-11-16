@@ -39,9 +39,9 @@ import { minterIdentity } from "./nns/identity.ts";
 import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
 
 interface StakeNeuronParams {
-  dissolveDelay: { Default: null } | { DelaySeconds: bigint };
+  dissolve_delay: { Default: null } | { DelayDays: bigint };
   followee: { Default: null } | { FolloweeId: bigint };
-  dissolving: { StartDissolving: null } | { KeepLocked: null };
+  dissolve_status: { Dissolving: null } | { Locked: null };
 }
 
 interface NeuronStates {
@@ -53,7 +53,6 @@ interface NeuronStates {
 
 export class Manager {
   private readonly me: ReturnType<typeof createIdentity>;
-  private readonly billingIdentity: ReturnType<typeof createIdentity>;
   private readonly pic: PocketIc;
   private readonly vectorActor: Actor<NNSVECTOR>;
   private readonly icrcActor: Actor<ICRCLEDGER>;
@@ -63,7 +62,6 @@ export class Manager {
   constructor(
     pic: PocketIc,
     me: ReturnType<typeof createIdentity>,
-    billingIdentity: ReturnType<typeof createIdentity>,
     vectorActor: Actor<NNSVECTOR>,
     icrcActor: Actor<ICRCLEDGER>,
     nnsActor: Actor<GOVERNANCE>,
@@ -71,7 +69,6 @@ export class Manager {
   ) {
     this.pic = pic;
     this.me = me;
-    this.billingIdentity = billingIdentity;
     this.vectorActor = vectorActor;
     this.icrcActor = icrcActor;
     this.nnsActor = nnsActor;
@@ -93,13 +90,13 @@ export class Manager {
           subnetId: Principal.fromText(NNS_SUBNET_ID),
         },
       },
+      application: [{ state: { type: SubnetStateType.New } }],
     });
 
     await pic.setTime(new Date().getTime());
     await pic.tick();
 
     let identity = createIdentity("superSecretAlicePassword");
-    let billingIdentity = createIdentity("superSecretBobPassword");
 
     // setup ICRC
     let icrcFixture = await ICRCLedger(pic, identity.getPrincipal());
@@ -134,7 +131,6 @@ export class Manager {
     return new Manager(
       pic,
       identity,
-      billingIdentity,
       vectorFixture.actor,
       icrcFixture.actor,
       govActor,
@@ -222,10 +218,16 @@ export class Manager {
     }
   }
 
+  public convertDaysToSeconds(days: bigint): bigint {
+    const secondsInADay = 24n * 60n * 60n; // Calculate seconds in a day using bigints
+    return days * secondsInADay; // Multiply days by seconds in a day
+  }
+
   public async createNode(stakeParams: StakeNeuronParams): Promise<NodeShared> {
     let req: CommonCreateRequest = {
       controllers: [{ owner: this.me.getPrincipal(), subaccount: [] }],
       destinations: [
+        [{ ic: { owner: this.me.getPrincipal(), subaccount: [] } }],
         [{ ic: { owner: this.me.getPrincipal(), subaccount: [] } }],
       ],
       refund: { owner: this.me.getPrincipal(), subaccount: [] },
@@ -234,15 +236,16 @@ export class Manager {
       extractors: [],
       affiliate: [],
       temporary: true,
+      billing_option: 0n,
       temp_id: 0,
     };
 
     let creq: CreateRequest = {
       devefi_jes1_icpneuron: {
         variables: {
-          update_delay: stakeParams.dissolveDelay,
-          update_followee: stakeParams.followee,
-          update_dissolving: stakeParams.dissolving,
+          dissolve_delay: stakeParams.dissolve_delay,
+          dissolve_status: stakeParams.dissolve_status,
+          followee: stakeParams.followee,
         },
       },
     };
@@ -266,15 +269,15 @@ export class Manager {
 
   public async modifyNode(
     nodeId: number,
-    updateDelaySeconds: [] | [{ Default: null } | { DelaySeconds: bigint }],
+    updateDelaySeconds: [] | [{ Default: null } | { DelayDays: bigint }],
     updateFollowee: [] | [{ Default: null } | { FolloweeId: bigint }],
-    updateDissolving: [] | [{ StartDissolving: null } | { KeepLocked: null }]
+    updateDissolving: [] | [{ Dissolving: null } | { Locked: null }]
   ): Promise<BatchCommandResponse> {
     let modCustomReq: ModifyRequest = {
       devefi_jes1_icpneuron: {
-        update_delay: updateDelaySeconds,
-        update_dissolving: updateDissolving,
-        update_followee: updateFollowee,
+        dissolve_delay: updateDelaySeconds,
+        dissolve_status: updateDissolving,
+        followee: updateFollowee,
       },
     };
 
@@ -409,20 +412,24 @@ export class Manager {
   }
 
   public async getBillingBalances() {
+    let author = Principal.fromText(
+      "jv4ws-fbili-a35rv-xd7a5-xwvxw-trink-oluun-g7bcp-oq5f6-35cba-vqe"
+    );
+
     // billing fees are in virtual account
     let bal = await this.vectorActor.icrc55_virtual_balances({
-      owner: this.billingIdentity.getPrincipal(),
+      owner: author,
       subaccount: [],
     });
 
     // return other balances to check things out
     let icrc = await this.icrcActor.icrc1_balance_of({
-      owner: this.billingIdentity.getPrincipal(),
+      owner: author,
       subaccount: [],
     });
 
     let icp = await this.ledgerActor.icrc1_balance_of({
-      owner: this.billingIdentity.getPrincipal(),
+      owner: author,
       subaccount: [],
     });
 

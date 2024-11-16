@@ -2,7 +2,7 @@ import { Manager } from "../setup/manager.ts";
 import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
 import {
   AMOUNT_TO_STAKE,
-  MINIMUM_DISSOLVE_DELAY,
+  MINIMUM_DISSOLVE_DELAY_DAYS,
   MOCK_FOLLOWEE_TO_SET,
   MOCK_FOLLOWEE_TO_SET_2,
 } from "../setup/constants.ts";
@@ -15,9 +15,9 @@ describe("Message", () => {
     manager = await Manager.beforeAll();
 
     node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolveDelay: { DelaySeconds: MINIMUM_DISSOLVE_DELAY },
+      dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
       followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
-      dissolving: { KeepLocked: null },
+      dissolve_status: { Locked: null },
     });
   });
 
@@ -29,37 +29,35 @@ describe("Message", () => {
     await manager.stopNnsCanister();
     await manager.advanceBlocksAndTimeMinutes(3);
 
-    await manager.modifyNode(node.id, [], [], [{ StartDissolving: null }]);
+    await manager.modifyNode(node.id, [], [], [{ Dissolving: null }]);
     await manager.advanceBlocksAndTimeMinutes(5);
 
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom[0].devefi_jes1_icpneuron.variables.update_dissolving
-    ).toBeTruthy();
+      node.custom[0].devefi_jes1_icpneuron.variables.dissolve_status
+    ).toEqual({
+      Dissolving: null,
+    });
     expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
       manager.getNeuronStates().locked
     ); // should still be locked
 
     // should be network error in log
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
-        (log) => {
-          if ("Err" in log)
-            return (
-              log.Err.msg === "Canister rrkah-fqaaa-aaaaa-aaaaq-cai is stopped"
-            );
-        }
-      )
+      node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
+        if ("Err" in log)
+          return (
+            log.Err.msg === "Canister rrkah-fqaaa-aaaaa-aaaaq-cai is stopped"
+          );
+      })
     ).toBeTruthy();
 
     // start dissolving should not be there
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
-        (log) => {
-          if ("Ok" in log) return log.Ok.operation === "start_dissolving";
-        }
-      )
+      node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
+        if ("Ok" in log) return log.Ok.operation === "start_dissolving";
+      })
     ).toBeFalsy();
   });
 
@@ -71,14 +69,16 @@ describe("Message", () => {
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom[0].devefi_jes1_icpneuron.variables.update_dissolving
-    ).toBeTruthy();
+      node.custom[0].devefi_jes1_icpneuron.variables.dissolve_status
+    ).toEqual({
+      Dissolving: null,
+    });
     expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
       manager.getNeuronStates().dissolving
     ); // should be dissolving now
     // start dissolving should now be there
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+      node.custom[0].devefi_jes1_icpneuron.log.some(
         (log) => {
           if ("Ok" in log) return log.Ok.operation === "start_dissolving";
         }
@@ -102,7 +102,7 @@ describe("Message", () => {
 
     node = await manager.getNode(node.id);
     expect(
-      node.custom[0].devefi_jes1_icpneuron.variables.update_followee
+      node.custom[0].devefi_jes1_icpneuron.variables.followee
     ).toEqual(
       { FolloweeId: MOCK_FOLLOWEE_TO_SET_2 } // should have new
     );
@@ -112,7 +112,7 @@ describe("Message", () => {
 
     // should be network error in log
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+      node.custom[0].devefi_jes1_icpneuron.log.some(
         (log) => {
           if ("Err" in log)
             return (
@@ -124,7 +124,7 @@ describe("Message", () => {
 
     // update followees should not be there
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+      node.custom[0].devefi_jes1_icpneuron.log.some(
         (log) => {
           if ("Ok" in log) return log.Ok.operation === "update_followees";
         }
@@ -148,7 +148,7 @@ describe("Message", () => {
 
     // update followees should now be there
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.activity_log.some(
+      node.custom[0].devefi_jes1_icpneuron.log.some(
         (log) => {
           if ("Ok" in log) return log.Ok.operation === "update_followees";
         }

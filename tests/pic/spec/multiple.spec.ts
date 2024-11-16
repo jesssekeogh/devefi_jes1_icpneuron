@@ -4,7 +4,7 @@ import { Maturity } from "../setup/maturity.ts";
 import {
   AMOUNT_TO_STAKE,
   EXPECTED_TRANSACTION_FEES,
-  MINIMUM_DISSOLVE_DELAY,
+  MINIMUM_DISSOLVE_DELAY_DAYS,
   MOCK_FOLLOWEE_TO_SET,
 } from "../setup/constants.ts";
 
@@ -24,9 +24,9 @@ describe("Multiple", () => {
     let done = [];
     for (let i = 0; i < nodesToCreate; i++) {
       let node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-        dissolveDelay: { DelaySeconds: MINIMUM_DISSOLVE_DELAY },
+        dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
         followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
-        dissolving: { KeepLocked: null },
+        dissolve_status: { Locked: null },
       });
       done.push(node);
     }
@@ -64,9 +64,9 @@ describe("Multiple", () => {
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
-      expect(
-        node.custom[0].devefi_jes1_icpneuron.variables.update_followee
-      ).toEqual({ FolloweeId: maturityFollowee });
+      expect(node.custom[0].devefi_jes1_icpneuron.variables.followee).toEqual({
+        FolloweeId: maturityFollowee,
+      });
       expect(node.custom[0].devefi_jes1_icpneuron.cache.followees).toHaveLength(
         3
       );
@@ -111,10 +111,15 @@ describe("Multiple", () => {
     await maturity.createMotionProposal(maturityFollowee);
     await manager.advanceTime(20160); // 2 weeks
     await manager.advanceBlocks(10);
+
+    await manager.advanceBlocksAndTimeMinutes(3);
+
     await manager.advanceBlocksAndTimeDays(3);
 
     for (let node of nodes) {
+      await manager.advanceBlocksAndTimeMinutes(1);
       node = await manager.getNode(node.id);
+
       expect(
         node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
       ).toBeGreaterThan(0);
@@ -127,10 +132,13 @@ describe("Multiple", () => {
 
     await manager.advanceTime(10160); // 1 week
     await manager.advanceBlocks(10);
+    
+    await manager.advanceBlocksAndTimeMinutes(3);
 
-    await manager.advanceBlocksAndTimeDays(5);
+    await manager.advanceBlocksAndTimeDays(3);
 
     for (let node of nodes) {
+      await manager.advanceBlocksAndTimeMinutes(1);
       node = await manager.getNode(node.id);
       expect(
         node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length

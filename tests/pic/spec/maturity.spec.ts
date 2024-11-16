@@ -1,7 +1,10 @@
 import { Manager } from "../setup/manager.ts";
 import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
 import { Maturity } from "../setup/maturity.ts";
-import { AMOUNT_TO_STAKE, MINIMUM_DISSOLVE_DELAY } from "../setup/constants.ts";
+import {
+  AMOUNT_TO_STAKE,
+  MINIMUM_DISSOLVE_DELAY_DAYS,
+} from "../setup/constants.ts";
 
 describe("Maturity", () => {
   let manager: Manager;
@@ -15,9 +18,9 @@ describe("Maturity", () => {
     maturityFollowee = await maturity.createNeuron();
 
     node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolveDelay: { DelaySeconds: MINIMUM_DISSOLVE_DELAY },
+      dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
       followee: { FolloweeId: maturityFollowee },
-      dissolving: { KeepLocked: null },
+      dissolve_status: { Locked: null },
     });
   });
 

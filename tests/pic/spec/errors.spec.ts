@@ -2,8 +2,8 @@ import { Manager } from "../setup/manager.ts";
 import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
 import {
   AMOUNT_TO_STAKE,
-  MAX_DISSOLVE_DELAY,
-  MINIMUM_DISSOLVE_DELAY,
+  MAX_DISSOLVE_DELAY_DAYS,
+  MINIMUM_DISSOLVE_DELAY_DAYS,
   MOCK_FOLLOWEE_TO_SET,
 } from "../setup/constants.ts";
 
@@ -16,9 +16,9 @@ describe("Errors", () => {
     manager = await Manager.beforeAll();
 
     node = await manager.stakeNeuron(belowMinimumStake, {
-      dissolveDelay: { Default: null },
+      dissolve_delay: { Default: null },
       followee: { Default: null },
-      dissolving: { KeepLocked: null },
+      dissolve_status: { Locked: null },
     });
   });
 
@@ -47,19 +47,19 @@ describe("Errors", () => {
     ).toBeDefined();
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
-    ).toBe(MINIMUM_DISSOLVE_DELAY);
+    ).toBe(manager.convertDaysToSeconds(MINIMUM_DISSOLVE_DELAY_DAYS));
   });
 
   it("should set maximum delay when variable exceeds maximum", async () => {
-    let aboveMaximum = MAX_DISSOLVE_DELAY + MINIMUM_DISSOLVE_DELAY;
-    await manager.modifyNode(node.id, [{ DelaySeconds: aboveMaximum }], [], []);
+    let aboveMaximum = MAX_DISSOLVE_DELAY_DAYS + MINIMUM_DISSOLVE_DELAY_DAYS;
+    await manager.modifyNode(node.id, [{ DelayDays: aboveMaximum }], [], []);
 
     await manager.advanceBlocksAndTimeMinutes(3);
 
     node = await manager.getNode(node.id);
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
-    ).toBe(MAX_DISSOLVE_DELAY);
+    ).toBe(manager.convertDaysToSeconds(MAX_DISSOLVE_DELAY_DAYS));
   });
 
   it("should set the default followee", async () => {
