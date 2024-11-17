@@ -7,22 +7,21 @@
 .DS_Store
 **/.DS_Store
 
-# dfx temporary files
-.dfx/
-
-# generated files
-**/declarations/
+# Ignore everything in the .dfx directory
+.dfx/local
+.dfx/ic/lsp
+.dfx/ic/canisters/idl
+.dfx/ic/canisters/nnsvector/*
+!.dfx/ic/canisters/nnsvector/nnsvector.wasm.gz
 
 # rust
 target/
 
-# frontend code
+# other
+package-lock.json
 node_modules/
 dist/
 .svelte-kit/
-new_canister_ids.json
-
-# environment variables
 .env
 .mops
 canister.sh
