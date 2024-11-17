@@ -19,6 +19,7 @@ target/
 
 # other
 package-lock.json
+state/
 node_modules/
 dist/
 .svelte-kit/
