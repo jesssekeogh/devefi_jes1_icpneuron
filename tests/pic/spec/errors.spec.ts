@@ -1,5 +1,5 @@
 import { Manager } from "../setup/manager.ts";
-import { NodeShared } from "../declarations/nnsvector/nnsvector.did.js";
+import { NodeShared } from "../setup/nnsvector/declarations/nnsvector.did.js";
 import {
   AMOUNT_TO_STAKE,
   MAX_DISSOLVE_DELAY_DAYS,

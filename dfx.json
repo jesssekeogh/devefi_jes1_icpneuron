@@ -6,8 +6,11 @@
       "gzip": true,
       "declarations": {
         "node_compatibility": true,
-        "output": "tests/pic/declarations/nnsvector"
-      }
+        "output": "tests/pic/setup/nnsvector/declarations"
+      },
+      "post_install": [
+        "cp .dfx/ic/canisters/nnsvector/nnsvector.wasm.gz tests/pic/setup/nnsvector"
+      ]
     }
   },
   "defaults": {

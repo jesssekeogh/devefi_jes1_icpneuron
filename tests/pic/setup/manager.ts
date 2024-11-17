@@ -8,12 +8,12 @@ import {
   LocalNodeId as NodeId,
   GetNodeResponse,
   BatchCommandResponse,
-} from "../declarations/nnsvector/nnsvector.did.js";
+} from "./nnsvector/declarations/nnsvector.did.js";
 import {
   _SERVICE as ICRCLEDGER,
   Account,
   TransferResult,
-} from "./icrcledger/icrcledger.idl.js";
+} from "./icrcledger/declarations/icrcledger.idl.js";
 import {
   _SERVICE as GOVERNANCE,
   idlFactory as governanceIdlFactory,

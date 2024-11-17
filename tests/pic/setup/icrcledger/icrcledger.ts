@@ -5,7 +5,7 @@ import {
   idlFactory,
   init,
   LedgerArg,
-} from "./icrcledger.idl";
+} from "./declarations/icrcledger.idl";
 import { IDL } from "@dfinity/candid";
 import { Principal } from "@dfinity/principal";
 

@@ -8,11 +8,7 @@
 **/.DS_Store
 
 # Ignore everything in the .dfx directory
-.dfx/local
-.dfx/ic/lsp
-.dfx/ic/canisters/idl
-.dfx/ic/canisters/nnsvector/*
-!.dfx/ic/canisters/nnsvector/nnsvector.wasm.gz
+.dfx/
 
 # rust
 target/
@@ -25,5 +21,4 @@ dist/
 .mops
 canister.sh
 upgrade.sh
-tests/nns_state/
 tests/pic/nns_state
