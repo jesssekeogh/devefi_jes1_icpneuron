@@ -5,20 +5,9 @@ import {
   _SERVICE as NNSVECTOR,
   idlFactory,
   init as PylonInit,
-} from "../../declarations/nnsvector/nnsvector.did.js";
+} from "./declarations/nnsvector.did.js";
 
-const WASM_PATH = resolve(
-  __dirname,
-  "..",
-  "..",
-  "..",
-  "..",
-  ".dfx",
-  "ic",
-  "canisters",
-  "nnsvector",
-  "nnsvector.wasm.gz"
-);
+const WASM_PATH = resolve(__dirname, "../nnsvector/nnsvector.wasm.gz");
 
 export async function NNSVector(pic: PocketIc) {
   const subnets = pic.getApplicationSubnets();
