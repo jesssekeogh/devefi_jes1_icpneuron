@@ -13,11 +13,15 @@ describe("Message", () => {
 
   beforeAll(async () => {
     manager = await Manager.beforeAll();
-
-    node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
-      followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
-      dissolve_status: { Locked: null },
+    
+    node = await manager.stakeNeuron({
+      stake_amount: AMOUNT_TO_STAKE,
+      billing_option: 0n,
+      neuron_params: {
+        dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
+        followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
+        dissolve_status: { Locked: null },
+      },
     });
   });
 
@@ -78,11 +82,9 @@ describe("Message", () => {
     ); // should be dissolving now
     // start dissolving should now be there
     expect(
-      node.custom[0].devefi_jes1_icpneuron.log.some(
-        (log) => {
-          if ("Ok" in log) return log.Ok.operation === "start_dissolving";
-        }
-      )
+      node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
+        if ("Ok" in log) return log.Ok.operation === "start_dissolving";
+      })
     ).toBeTruthy();
   });
 
@@ -101,9 +103,7 @@ describe("Message", () => {
     await manager.advanceBlocksAndTimeMinutes(5);
 
     node = await manager.getNode(node.id);
-    expect(
-      node.custom[0].devefi_jes1_icpneuron.variables.followee
-    ).toEqual(
+    expect(node.custom[0].devefi_jes1_icpneuron.variables.followee).toEqual(
       { FolloweeId: MOCK_FOLLOWEE_TO_SET_2 } // should have new
     );
     for (let followee of node.custom[0].devefi_jes1_icpneuron.cache.followees) {
@@ -112,23 +112,19 @@ describe("Message", () => {
 
     // should be network error in log
     expect(
-      node.custom[0].devefi_jes1_icpneuron.log.some(
-        (log) => {
-          if ("Err" in log)
-            return (
-              log.Err.msg === "Canister rrkah-fqaaa-aaaaa-aaaaq-cai is stopped"
-            );
-        }
-      )
+      node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
+        if ("Err" in log)
+          return (
+            log.Err.msg === "Canister rrkah-fqaaa-aaaaa-aaaaq-cai is stopped"
+          );
+      })
     ).toBeTruthy();
 
     // update followees should not be there
     expect(
-      node.custom[0].devefi_jes1_icpneuron.log.some(
-        (log) => {
-          if ("Ok" in log) return log.Ok.operation === "update_followees";
-        }
-      )
+      node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
+        if ("Ok" in log) return log.Ok.operation === "update_followees";
+      })
     ).toBeFalsy();
   });
 
@@ -148,11 +144,9 @@ describe("Message", () => {
 
     // update followees should now be there
     expect(
-      node.custom[0].devefi_jes1_icpneuron.log.some(
-        (log) => {
-          if ("Ok" in log) return log.Ok.operation === "update_followees";
-        }
-      )
+      node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
+        if ("Ok" in log) return log.Ok.operation === "update_followees";
+      })
     ).toBeTruthy();
   });
 });

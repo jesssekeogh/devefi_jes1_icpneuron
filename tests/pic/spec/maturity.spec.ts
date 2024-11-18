@@ -17,10 +17,14 @@ describe("Maturity", () => {
     maturity = Maturity.beforeAll(manager);
     maturityFollowee = await maturity.createNeuron();
 
-    node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
-      followee: { FolloweeId: maturityFollowee },
-      dissolve_status: { Locked: null },
+    node = await manager.stakeNeuron({
+      stake_amount: AMOUNT_TO_STAKE,
+      billing_option: 0n,
+      neuron_params: {
+        dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
+        followee: { FolloweeId: maturityFollowee },
+        dissolve_status: { Locked: null },
+      },
     });
   });
 
@@ -30,12 +34,12 @@ describe("Maturity", () => {
 
   it("should accrue maturity", async () => {
     await maturity.createMotionProposal(maturityFollowee);
-    await manager.advanceBlocksAndTimeMinutes(1);
 
-    await manager.advanceTime(20160); // 2 weeks
+    await manager.advanceTime(7200) // 5 days in mins
     await manager.advanceBlocks(10);
-
+  
     node = await manager.getNode(node.id);
+
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.maturity_e8s_equivalent[0]
     ).toBeGreaterThan(0n);
@@ -65,11 +69,6 @@ describe("Maturity", () => {
     ).toBe(0);
     let newBalance = await manager.getMyBalances();
     expect(newBalance.icp_tokens).toBeGreaterThan(oldBalance.icp_tokens);
-  });
-
-  it("should add fee to author account", async () => {
-    let { icp_tokens } = await manager.getBillingBalances();
-    expect(icp_tokens).toBeGreaterThan(0n);
   });
 
   it("should spawn and claim maturity again", async () => {

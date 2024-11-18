@@ -15,11 +15,14 @@ describe("Stake", () => {
 
   beforeAll(async () => {
     manager = await Manager.beforeAll();
-
-    node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-      dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
-      followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
-      dissolve_status: { Locked: null },
+    node = await manager.stakeNeuron({
+      stake_amount: AMOUNT_TO_STAKE,
+      billing_option: 0n,
+      neuron_params: {
+        dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
+        followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
+        dissolve_status: { Locked: null },
+      },
     });
   });
 
