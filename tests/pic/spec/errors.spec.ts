@@ -15,10 +15,14 @@ describe("Errors", () => {
   beforeAll(async () => {
     manager = await Manager.beforeAll();
 
-    node = await manager.stakeNeuron(belowMinimumStake, {
-      dissolve_delay: { Default: null },
-      followee: { Default: null },
-      dissolve_status: { Locked: null },
+    node = await manager.stakeNeuron({
+      stake_amount: belowMinimumStake,
+      billing_option: 0n,
+      neuron_params: {
+        dissolve_delay: { Default: null },
+        followee: { Default: null },
+        dissolve_status: { Locked: null },
+      },
     });
   });
 

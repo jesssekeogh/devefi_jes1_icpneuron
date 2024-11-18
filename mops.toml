@@ -8,6 +8,8 @@ license = ""
 
 [dependencies]
 base = "0.13.3"
-devefi = "0.3.18"
 neuro = "0.7.1"
 map = "9.0.1"
+
+[dev-dependencies]
+devefi = "0.3.18"

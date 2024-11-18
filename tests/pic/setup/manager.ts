@@ -38,10 +38,16 @@ import { NNSVector, ICRCLedger } from "./index";
 import { minterIdentity } from "./nns/identity.ts";
 import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
 
-interface StakeNeuronParams {
+interface NeuronParams {
   dissolve_delay: { Default: null } | { DelayDays: bigint };
   followee: { Default: null } | { FolloweeId: bigint };
   dissolve_status: { Dissolving: null } | { Locked: null };
+}
+
+interface StakeNodeParams {
+  stake_amount: bigint;
+  billing_option: bigint;
+  neuron_params: NeuronParams;
 }
 
 interface NeuronStates {
@@ -201,7 +207,6 @@ export class Manager {
   public async advanceBlocksAndTimeMinutes(rounds: number): Promise<void> {
     let mins = 10; // 10 mins
     let blocks = 10;
-
     for (let i = 0; i < rounds; i++) {
       await this.pic.advanceTime(mins * 60 * 1000);
       await this.pic.tick(blocks);
@@ -223,7 +228,7 @@ export class Manager {
     return days * secondsInADay; // Multiply days by seconds in a day
   }
 
-  public async createNode(stakeParams: StakeNeuronParams): Promise<NodeShared> {
+  public async createNode(stakeParams: StakeNodeParams): Promise<NodeShared> {
     let req: CommonCreateRequest = {
       controllers: [{ owner: this.me.getPrincipal(), subaccount: [] }],
       destinations: [
@@ -236,16 +241,16 @@ export class Manager {
       extractors: [],
       affiliate: [],
       temporary: true,
-      billing_option: 0n,
+      billing_option: stakeParams.billing_option,
       temp_id: 0,
     };
 
     let creq: CreateRequest = {
       devefi_jes1_icpneuron: {
         variables: {
-          dissolve_delay: stakeParams.dissolve_delay,
-          dissolve_status: stakeParams.dissolve_status,
-          followee: stakeParams.followee,
+          dissolve_delay: stakeParams.neuron_params.dissolve_delay,
+          dissolve_status: stakeParams.neuron_params.dissolve_status,
+          followee: stakeParams.neuron_params.followee,
         },
       },
     };
@@ -331,10 +336,7 @@ export class Manager {
     return resp.ok.commands[0].delete_node.ok;
   }
 
-  public async stakeNeuron(
-    stakeAmount: bigint,
-    stakeParams: StakeNeuronParams
-  ): Promise<NodeShared> {
+  public async stakeNeuron(stakeParams: StakeNodeParams): Promise<NodeShared> {
     let node = await this.createNode(stakeParams);
     await this.advanceBlocksAndTimeMinutes(1);
 
@@ -342,7 +344,10 @@ export class Manager {
 
     await this.advanceBlocksAndTimeMinutes(2);
 
-    await this.sendIcp(this.getNodeSourceAccount(node, 0), stakeAmount);
+    await this.sendIcp(
+      this.getNodeSourceAccount(node, 0),
+      stakeParams.stake_amount
+    );
     await this.advanceBlocksAndTimeMinutes(8);
 
     let refreshedNode = await this.getNode(node.id);

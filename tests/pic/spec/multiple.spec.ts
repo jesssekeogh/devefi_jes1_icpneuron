@@ -23,10 +23,14 @@ describe("Multiple", () => {
 
     let done = [];
     for (let i = 0; i < nodesToCreate; i++) {
-      let node = await manager.stakeNeuron(AMOUNT_TO_STAKE, {
-        dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
-        followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
-        dissolve_status: { Locked: null },
+      let node = await manager.stakeNeuron({
+        stake_amount: AMOUNT_TO_STAKE,
+        billing_option: 0n,
+        neuron_params: {
+          dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
+          followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
+          dissolve_status: { Locked: null },
+        },
       });
       done.push(node);
     }
@@ -132,7 +136,7 @@ describe("Multiple", () => {
 
     await manager.advanceTime(10160); // 1 week
     await manager.advanceBlocks(10);
-    
+
     await manager.advanceBlocksAndTimeMinutes(3);
 
     await manager.advanceBlocksAndTimeDays(3);
