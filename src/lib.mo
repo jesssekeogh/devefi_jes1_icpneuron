@@ -175,7 +175,7 @@ module {
                 // if cost per day billing option chosen, send maturity with no tx fee
                 let maturityDestination = switch (vec.billing.billing_option) {
                     case (1) {
-                        let ?account = core.getDestinationAccountIC(vec, 1) else return;
+                        let ?account = core.getDestinationAccountIC(vec, 0) else return;
                         #external_account({
                             owner = account.owner;
                             subaccount = account.subaccount;
