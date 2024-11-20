@@ -49,7 +49,7 @@ describe("Billing", () => {
 
     await maturity.createMotionProposal(maturityFollowee);
 
-    await manager.advanceBlocksAndTimeDays(20);
+    await manager.advanceBlocksAndTimeDays(16);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
