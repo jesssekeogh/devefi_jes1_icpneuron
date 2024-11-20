@@ -35,9 +35,8 @@ describe("Maturity", () => {
   it("should accrue maturity", async () => {
     await maturity.createMotionProposal(maturityFollowee);
 
-    await manager.advanceTime(7200) // 5 days in mins
-    await manager.advanceBlocks(10);
-  
+    await manager.advanceBlocksAndTimeDays(5);
+
     node = await manager.getNode(node.id);
 
     expect(
@@ -57,11 +56,8 @@ describe("Maturity", () => {
 
   it("should claim maturity", async () => {
     let oldBalance = await manager.getMyBalances();
-    await manager.advanceTime(10160); // 1 week
-    await manager.advanceBlocks(10);
 
-    await manager.advanceBlocksAndTimeDays(3);
-    await manager.advanceBlocksAndTimeMinutes(3);
+    await manager.advanceBlocksAndTimeDays(8);
 
     node = await manager.getNode(node.id);
     expect(
@@ -73,12 +69,9 @@ describe("Maturity", () => {
 
   it("should spawn and claim maturity again", async () => {
     await maturity.createMotionProposal(maturityFollowee);
-    await manager.advanceBlocksAndTimeMinutes(1);
 
-    await manager.advanceTime(20160); // 2 weeks
-    await manager.advanceBlocks(10);
+    await manager.advanceBlocksAndTimeDays(8);
 
-    await manager.advanceBlocksAndTimeDays(3);
     node = await manager.getNode(node.id);
 
     expect(
@@ -87,11 +80,8 @@ describe("Maturity", () => {
     expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(2);
 
     let oldBalance = await manager.getMyBalances();
-    await manager.advanceTime(10160); // 1 week
-    await manager.advanceBlocks(10);
 
-    await manager.advanceBlocksAndTimeDays(3);
-    await manager.advanceBlocksAndTimeMinutes(3);
+    await manager.advanceBlocksAndTimeDays(8);
 
     node = await manager.getNode(node.id);
     expect(

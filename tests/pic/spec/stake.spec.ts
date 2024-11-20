@@ -170,7 +170,7 @@ describe("Stake", () => {
     await manager.advanceTime(4300000); // 8 years
     await manager.advanceBlocks(100);
 
-    await manager.advanceBlocksAndTimeDays(3);
+    await manager.advanceBlocksAndTimeDays(1);
     node = await manager.getNode(node.id);
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.cached_neuron_stake_e8s[0]
@@ -223,7 +223,7 @@ describe("Stake", () => {
     await manager.advanceTime(4300000); // 8 years
     await manager.advanceBlocks(100);
 
-    await manager.advanceBlocksAndTimeDays(5);
+    await manager.advanceBlocksAndTimeDays(1);
     node = await manager.getNode(node.id);
 
     expect(

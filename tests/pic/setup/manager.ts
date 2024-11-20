@@ -195,6 +195,11 @@ export class Manager {
     return this.ledgerActor;
   }
 
+  public async getNow(): Promise<bigint> {
+    let time = await this.pic.getTime();
+    return BigInt(Math.trunc(time));
+  }
+
   public async advanceTime(mins: number): Promise<void> {
     await this.pic.advanceTime(mins * 60 * 1000);
   }
@@ -213,19 +218,50 @@ export class Manager {
     }
   }
 
-  // used for when no refresh is pending, a node is updated once every 12 hours
-  public async advanceBlocksAndTimeDays(rounds: number): Promise<void> {
-    let mins = 24 * 60; // 24 hours
-    let blocks = 10;
+  public async advanceBlocksAndTimeHours(rounds: number): Promise<void> {
+    const sixHoursMins = 6 * 60; // 6 hours
+    const shortIntervalMins = 10; // 10 minutes
+    const blocksForSixHours = 10; // Blocks for 6 hours
+    const blocksForShortInterval = 5; // Blocks for 10 minutes
+
     for (let i = 0; i < rounds; i++) {
-      await this.pic.advanceTime(mins * 60 * 1000);
-      await this.pic.tick(blocks);
+      await this.pic.advanceTime(sixHoursMins * 60 * 1000); // Convert minutes to milliseconds
+      await this.pic.tick(blocksForSixHours);
+
+      // Advance 10 minutes (to process things)
+      await this.pic.advanceTime(shortIntervalMins * 60 * 1000); // Convert minutes to milliseconds
+      await this.pic.tick(blocksForShortInterval);
+    }
+  }
+
+  // Used for when no refresh is pending, a node is updated once every 12 hours (with 10 minutes to process)
+  public async advanceBlocksAndTimeDays(rounds: number): Promise<void> {
+    const halfDayMins = 12 * 60; // 12 hours
+    const shortIntervalMins = 10; // 10 minutes
+    const blocksForHalfDay = 10; // Blocks for 12 hours
+    const blocksForShortInterval = 5; // Blocks for 10 minutes
+
+    for (let i = 0; i < rounds; i++) {
+      // run this twice (24 hours)
+      for (let x = 0; x < 2; x++) {
+        // Advance 12 hours
+        await this.pic.advanceTime(halfDayMins * 60 * 1000); // Convert minutes to milliseconds
+        await this.pic.tick(blocksForHalfDay);
+
+        // Advance 10 minutes
+        await this.pic.advanceTime(shortIntervalMins * 60 * 1000); // Convert minutes to milliseconds
+        await this.pic.tick(blocksForShortInterval);
+      }
     }
   }
 
   public convertDaysToSeconds(days: bigint): bigint {
     const secondsInADay = 24n * 60n * 60n; // Calculate seconds in a day using bigints
     return days * secondsInADay; // Multiply days by seconds in a day
+  }
+
+  public convertNanosToMillis(nanoTimestamp: bigint): bigint {
+    return nanoTimestamp / 1_000_000n;
   }
 
   public async createNode(stakeParams: StakeNodeParams): Promise<NodeShared> {
