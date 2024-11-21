@@ -8,6 +8,8 @@ import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Error "mo:base/Error";
 import Buffer "mo:base/Buffer";
+import Iter "mo:base/Iter";
+import Nat32 "mo:base/Nat32";
 import Core "mo:devefi/core";
 import Ver1 "./memory/v1";
 import I "./interface";
@@ -408,11 +410,13 @@ module {
             public func refresh_cache(nodeMem : Ver1.NodeMem, vid : T.NodeId) : async* () {
                 let ?nid = nodeMem.cache.neuron_id else return;
 
+                // retrieves all neurons owned by the pylon, filtering for spawning neurons
+                // Explicitly includes the vector neuron, even if empty, while excluding all other empty neurons.
                 let { full_neurons; neuron_infos } = await* nns.listNeurons({
                     neuron_ids = [nid];
                     include_readable = true;
                     include_public = true;
-                    include_empty = true;
+                    include_empty = false;
                 });
 
                 let neuronInfos = Map.fromIter<Nat64, I.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
@@ -462,34 +466,29 @@ module {
             ) : () {
                 let spawningNeurons = Buffer.Buffer<Ver1.NeuronCache>(7); // likely max of 7 neurons (one per day)
 
-                // finds neurons that this vector owner has created and adds them to the cache
+                // finds neurons that this vector owner has created and adds them to the spawning_neurons
                 // start at 1, 0 is reserved for the vectors main neuron
-                var idx : Nat32 = 1;
-                label idxLoop while (idx <= nodeMem.internals.local_idx) {
-                    let spawningNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, idx);
+                label idxLoop for (idx in Iter.range(1, Nat32.toNat(nodeMem.internals.local_idx))) {
+                    let spawningNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, Nat32.fromNat(idx));
                     let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), spawningNonce);
 
                     let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else continue idxLoop;
                     let ?nid = full.id else continue idxLoop;
                     let ?info = Map.get(neuronInfos, Map.n64hash, nid.id) else continue idxLoop;
 
-                    // adds spawning neurons too, a possible memory adjustment could be to just add spawned neurons,
-                    // it is nice to show the vector owner the neurons that are spawning though
-                    if (full.cached_neuron_stake_e8s > 0 or full.maturity_e8s_equivalent > 0) {
-                        spawningNeurons.add({
-                            var neuron_id = ?nid.id;
-                            var nonce = ?spawningNonce;
-                            var maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
-                            var cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
-                            var created_timestamp_seconds = ?full.created_timestamp_seconds;
-                            var followees = full.followees;
-                            var dissolve_delay_seconds = ?info.dissolve_delay_seconds;
-                            var state = ?info.state;
-                            var voting_power = ?info.voting_power;
-                            var age_seconds = ?info.age_seconds;
-                        });
-                    };
-                    idx += 1;
+                    // we are not fetching empty neurons, so if a neuron is found it has ICP in it
+                    spawningNeurons.add({
+                        var neuron_id = ?nid.id;
+                        var nonce = ?spawningNonce;
+                        var maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
+                        var cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
+                        var created_timestamp_seconds = ?full.created_timestamp_seconds;
+                        var followees = full.followees;
+                        var dissolve_delay_seconds = ?info.dissolve_delay_seconds;
+                        var state = ?info.state;
+                        var voting_power = ?info.voting_power;
+                        var age_seconds = ?info.age_seconds;
+                    });
                 };
 
                 nodeMem.internals.spawning_neurons := Buffer.toArray(spawningNeurons);
