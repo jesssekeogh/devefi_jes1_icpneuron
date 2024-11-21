@@ -35,10 +35,10 @@ describe("Maturity", () => {
   it("should accrue maturity", async () => {
     await maturity.createMotionProposal(maturityFollowee);
 
-    await manager.advanceBlocksAndTimeDays(5);
+    await manager.advanceTime(7200) // 5 days in mins
+    await manager.advanceBlocks(10);
 
     node = await manager.getNode(node.id);
-
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.maturity_e8s_equivalent[0]
     ).toBeGreaterThan(0n);
