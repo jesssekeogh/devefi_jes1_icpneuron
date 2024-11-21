@@ -8,6 +8,7 @@ const config: Config = {
   globalSetup: '<rootDir>/global-setup.ts',
   globalTeardown: '<rootDir>/global-teardown.ts',
   testTimeout: 300_000,
+  maxWorkers: 1,
 };
 
 export default config;

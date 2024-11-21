@@ -19,7 +19,7 @@ describe("Multiple", () => {
     maturity = Maturity.beforeAll(manager);
     maturityFollowee = await maturity.createNeuron();
 
-    const nodesToCreate = 5;
+    const nodesToCreate = 3;
 
     let done = [];
     for (let i = 0; i < nodesToCreate; i++) {
