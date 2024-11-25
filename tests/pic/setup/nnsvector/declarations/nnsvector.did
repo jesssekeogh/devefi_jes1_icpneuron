@@ -1,13 +1,3 @@
-type VirtualBalancesResponse = 
- vec record {
-       SupportedLedger;
-       nat;
-     };
-type VirtualBalancesRequest = 
- record {
-   owner: principal;
-   subaccount: opt blob;
- };
 type Version = 
  variant {
    alpha: vec nat16;
@@ -127,7 +117,7 @@ type PylonMetaResp =
    modules: vec ModuleMeta;
    name: text;
    request_max_expire_sec: nat64;
-   supported_ledgers: vec SupportedLedger;
+   supported_ledgers: vec LedgerInfo;
    temporary_nodes: record {
                       allowed: bool;
                       expire_sec: nat64;
@@ -159,19 +149,19 @@ type NodeShared =
 type NNSVECTOR = 
  service {
    get_ledger_errors: () -> (vec vec text) query;
-   get_ledgers_info: () -> (vec LedgerInfo) query;
+   get_ledgers_info: () -> (vec LedgerInfo__1) query;
    icrc3_get_archives: (GetArchivesArgs) -> (GetArchivesResult) query;
    icrc3_get_blocks: (GetBlocksArgs) -> (GetBlocksResult) query;
    icrc3_get_tip_certificate: () -> (opt DataCertificate) query;
    icrc3_supported_block_types: () -> (vec BlockType) query;
+   icrc55_account_register: (Account) -> ();
+   icrc55_accounts: (AccountsRequest) -> (AccountsResponse) query;
    icrc55_command: (BatchCommandRequest) -> (BatchCommandResponse);
    icrc55_get_controller_nodes: (GetControllerNodesRequest) ->
     (vec NodeShared) query;
    icrc55_get_defaults: (text) -> (CreateRequest) query;
    icrc55_get_nodes: (vec GetNode) -> (vec opt NodeShared) query;
    icrc55_get_pylon_meta: () -> (PylonMetaResp) query;
-   icrc55_virtual_balances: (VirtualBalancesRequest) ->
-    (VirtualBalancesResponse) query;
  };
 type ModuleMeta = 
  record {
@@ -209,13 +199,21 @@ type ModifyNodeRequest =
  };
 type LocalNodeId = nat32;
 type LedgerLabel = text;
-type LedgerInfo = 
+type LedgerInfo__1 = 
  record {
    id: principal;
    info: variant {
            icp: Info;
            icrc: Info__1;
          };
+ };
+type LedgerInfo = 
+ record {
+   decimals: nat8;
+   fee: nat;
+   ledger: SupportedLedger;
+   name: text;
+   symbol: text;
  };
 type LedgerIdx = nat;
 type InputAddress = 
@@ -484,7 +482,7 @@ type BatchCommandResponse =
     };
    ok: record {
          commands: vec CommandResponse;
-         id: nat;
+         id: opt nat;
        };
  };
 type BatchCommandRequest = 
@@ -511,6 +509,17 @@ type Activity =
          operation: text;
          timestamp: nat64;
        };
+ };
+type AccountsResponse = vec AccountEndpoint;
+type AccountsRequest = 
+ record {
+   owner: principal;
+   subaccount: opt blob;
+ };
+type AccountEndpoint = 
+ record {
+   balance: nat;
+   endpoint: Endpoint;
  };
 type Account = 
  record {

@@ -6,6 +6,12 @@ export interface Account {
   'owner' : Principal,
   'subaccount' : [] | [Uint8Array | number[]],
 }
+export interface AccountEndpoint { 'balance' : bigint, 'endpoint' : Endpoint }
+export interface AccountsRequest {
+  'owner' : Principal,
+  'subaccount' : [] | [Uint8Array | number[]],
+}
+export type AccountsResponse = Array<AccountEndpoint>;
 export type Activity = {
     'Ok' : { 'operation' : string, 'timestamp' : bigint }
   } |
@@ -22,7 +28,7 @@ export interface BatchCommandRequest {
   'commands' : Array<Command>,
 }
 export type BatchCommandResponse = {
-    'ok' : { 'id' : bigint, 'commands' : Array<CommandResponse> }
+    'ok' : { 'id' : [] | [bigint], 'commands' : Array<CommandResponse> }
   } |
   {
     'err' : { 'caller_not_controller' : null } |
@@ -209,6 +215,13 @@ export type InputAddress = { 'ic' : Account } |
   { 'temp' : { 'id' : number, 'source_idx' : EndpointIdx } };
 export type LedgerIdx = bigint;
 export interface LedgerInfo {
+  'fee' : bigint,
+  'decimals' : number,
+  'name' : string,
+  'ledger' : SupportedLedger,
+  'symbol' : string,
+}
+export interface LedgerInfo__1 {
   'id' : Principal,
   'info' : { 'icp' : Info } |
     { 'icrc' : Info__1 },
@@ -245,11 +258,13 @@ export interface ModuleMeta {
 }
 export interface NNSVECTOR {
   'get_ledger_errors' : ActorMethod<[], Array<Array<string>>>,
-  'get_ledgers_info' : ActorMethod<[], Array<LedgerInfo>>,
+  'get_ledgers_info' : ActorMethod<[], Array<LedgerInfo__1>>,
   'icrc3_get_archives' : ActorMethod<[GetArchivesArgs], GetArchivesResult>,
   'icrc3_get_blocks' : ActorMethod<[GetBlocksArgs], GetBlocksResult>,
   'icrc3_get_tip_certificate' : ActorMethod<[], [] | [DataCertificate]>,
   'icrc3_supported_block_types' : ActorMethod<[], Array<BlockType>>,
+  'icrc55_account_register' : ActorMethod<[Account], undefined>,
+  'icrc55_accounts' : ActorMethod<[AccountsRequest], AccountsResponse>,
   'icrc55_command' : ActorMethod<[BatchCommandRequest], BatchCommandResponse>,
   'icrc55_get_controller_nodes' : ActorMethod<
     [GetControllerNodesRequest],
@@ -258,10 +273,6 @@ export interface NNSVECTOR {
   'icrc55_get_defaults' : ActorMethod<[string], CreateRequest>,
   'icrc55_get_nodes' : ActorMethod<[Array<GetNode>], Array<[] | [NodeShared]>>,
   'icrc55_get_pylon_meta' : ActorMethod<[], PylonMetaResp>,
-  'icrc55_virtual_balances' : ActorMethod<
-    [VirtualBalancesRequest],
-    VirtualBalancesResponse
-  >,
 }
 export interface NodeShared {
   'id' : LocalNodeId,
@@ -287,7 +298,7 @@ export interface NodeShared {
 export interface PylonMetaResp {
   'name' : string,
   'billing' : BillingPylon,
-  'supported_ledgers' : Array<SupportedLedger>,
+  'supported_ledgers' : Array<LedgerInfo>,
   'request_max_expire_sec' : bigint,
   'governed_by' : string,
   'temporary_nodes' : { 'allowed' : boolean, 'expire_sec' : bigint },
@@ -359,11 +370,6 @@ export type ValueMap = [string, Value];
 export type Version = { 'alpha' : Uint16Array | number[] } |
   { 'beta' : Uint16Array | number[] } |
   { 'release' : Uint16Array | number[] };
-export interface VirtualBalancesRequest {
-  'owner' : Principal,
-  'subaccount' : [] | [Uint8Array | number[]],
-}
-export type VirtualBalancesResponse = Array<[SupportedLedger, bigint]>;
 export interface _SERVICE extends NNSVECTOR {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

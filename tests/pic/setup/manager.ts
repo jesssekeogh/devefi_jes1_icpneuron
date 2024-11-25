@@ -456,13 +456,6 @@ export class Manager {
     let author = Principal.fromText(
       "jv4ws-fbili-a35rv-xd7a5-xwvxw-trink-oluun-g7bcp-oq5f6-35cba-vqe"
     );
-
-    // billing fees are in virtual account
-    let bal = await this.vectorActor.icrc55_virtual_balances({
-      owner: author,
-      subaccount: [],
-    });
-
     // return other balances to check things out
     let icrc = await this.icrcActor.icrc1_balance_of({
       owner: author,
@@ -474,7 +467,7 @@ export class Manager {
       subaccount: [],
     });
 
-    return { virtual_bal: bal, icrc_tokens: icrc, icp_tokens: icp };
+    return { icrc_tokens: icrc, icp_tokens: icp };
   }
 
   public getNodeSourceAccount(node: NodeShared, port: number): Account {
