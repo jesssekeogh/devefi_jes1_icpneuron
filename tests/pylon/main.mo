@@ -67,8 +67,8 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         xmem = mem_core_1;
         settings = {
             BILLING = billing;
-            PYLON_NAME = "NNS Vector";
-            PYLON_GOVERNED_BY = "Neutrinite DAO";
+            PYLON_NAME = "NNS Vector Test";
+            PYLON_GOVERNED_BY = "";
             TEMP_NODE_EXPIRATION_SEC = 3600;
             MAX_INSTRUCTIONS_PER_HEARTBEAT = 300_000_000;
             REQUEST_MAX_EXPIRE_SEC = 3600;
@@ -80,7 +80,7 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
     });
 
     // Components
-    let mem_vec_icpneuron_1 = IcpNeuronVector.Mem.Vector.V1.new();
+    stable let mem_vec_icpneuron_1 = IcpNeuronVector.Mem.Vector.V1.new();
     let devefi_jes1_icpneuron = IcpNeuronVector.Mod({ xmem = mem_vec_icpneuron_1; core; dvf });
 
     let vmod = T.VectorModules({ devefi_jes1_icpneuron });
@@ -139,8 +139,12 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         sys.icrc55_get_defaults(id);
     };
 
-    public query ({ caller }) func icrc55_virtual_balances(req : ICRC55.VirtualBalancesRequest) : async ICRC55.VirtualBalancesResponse {
-        sys.icrc55_virtual_balances(caller, req);
+    public shared ({caller}) func icrc55_account_register(acc : ICRC55.Account) : async () {
+        sys.icrc55_account_register(caller, acc);
+    };
+
+    public query ({caller}) func icrc55_accounts(req : ICRC55.AccountsRequest) : async ICRC55.AccountsResponse {
+        sys.icrc55_accounts(caller, req);
     };
 
     // ICRC-3

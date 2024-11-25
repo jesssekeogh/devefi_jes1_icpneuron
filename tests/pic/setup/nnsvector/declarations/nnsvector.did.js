@@ -21,7 +21,7 @@ export const idlFactory = ({ IDL }) => {
     'reader_instructions_cost' : IDL.Nat64,
     'sender_instructions_cost' : IDL.Nat64,
   });
-  const LedgerInfo = IDL.Record({
+  const LedgerInfo__1 = IDL.Record({
     'id' : IDL.Principal,
     'info' : IDL.Variant({ 'icp' : Info, 'icrc' : Info__1 }),
   });
@@ -78,15 +78,34 @@ export const idlFactory = ({ IDL }) => {
     'hash_tree' : IDL.Vec(IDL.Nat8),
   });
   const BlockType = IDL.Record({ 'url' : IDL.Text, 'block_type' : IDL.Text });
+  const Account = IDL.Record({
+    'owner' : IDL.Principal,
+    'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+  });
+  const AccountsRequest = IDL.Record({
+    'owner' : IDL.Principal,
+    'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+  });
+  const EndpointIC = IDL.Record({
+    'ledger' : IDL.Principal,
+    'account' : Account,
+  });
+  const EndpointOther = IDL.Record({
+    'platform' : IDL.Nat64,
+    'ledger' : IDL.Vec(IDL.Nat8),
+    'account' : IDL.Vec(IDL.Nat8),
+  });
+  const Endpoint = IDL.Variant({ 'ic' : EndpointIC, 'other' : EndpointOther });
+  const AccountEndpoint = IDL.Record({
+    'balance' : IDL.Nat,
+    'endpoint' : Endpoint,
+  });
+  const AccountsResponse = IDL.Vec(AccountEndpoint);
   const Controller = IDL.Record({
     'owner' : IDL.Principal,
     'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
   });
   const LocalNodeId = IDL.Nat32;
-  const Account = IDL.Record({
-    'owner' : IDL.Principal,
-    'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-  });
   const EndpointIdx = IDL.Nat8;
   const InputAddress = IDL.Variant({
     'ic' : Account,
@@ -260,16 +279,6 @@ export const idlFactory = ({ IDL }) => {
     'endpoint' : EndpointOpt,
     'name' : IDL.Text,
   });
-  const EndpointIC = IDL.Record({
-    'ledger' : IDL.Principal,
-    'account' : Account,
-  });
-  const EndpointOther = IDL.Record({
-    'platform' : IDL.Nat64,
-    'ledger' : IDL.Vec(IDL.Nat8),
-    'account' : IDL.Vec(IDL.Nat8),
-  });
-  const Endpoint = IDL.Variant({ 'ic' : EndpointIC, 'other' : EndpointOther });
   const SourceEndpointResp = IDL.Record({
     'balance' : IDL.Nat,
     'endpoint' : Endpoint,
@@ -314,7 +323,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const BatchCommandResponse = IDL.Variant({
     'ok' : IDL.Record({
-      'id' : IDL.Nat,
+      'id' : IDL.Opt(IDL.Nat),
       'commands' : IDL.Vec(CommandResponse),
     }),
     'err' : IDL.Variant({
@@ -367,6 +376,13 @@ export const idlFactory = ({ IDL }) => {
     'platform_account' : Account,
     'pylon_account' : Account,
   });
+  const LedgerInfo = IDL.Record({
+    'fee' : IDL.Nat,
+    'decimals' : IDL.Nat8,
+    'name' : IDL.Text,
+    'ledger' : SupportedLedger,
+    'symbol' : IDL.Text,
+  });
   const Billing = IDL.Record({
     'transaction_fee' : BillingTransactionFee,
     'cost_per_day' : IDL.Nat,
@@ -397,7 +413,7 @@ export const idlFactory = ({ IDL }) => {
   const PylonMetaResp = IDL.Record({
     'name' : IDL.Text,
     'billing' : BillingPylon,
-    'supported_ledgers' : IDL.Vec(SupportedLedger),
+    'supported_ledgers' : IDL.Vec(LedgerInfo),
     'request_max_expire_sec' : IDL.Nat64,
     'governed_by' : IDL.Text,
     'temporary_nodes' : IDL.Record({
@@ -406,14 +422,9 @@ export const idlFactory = ({ IDL }) => {
     }),
     'modules' : IDL.Vec(ModuleMeta),
   });
-  const VirtualBalancesRequest = IDL.Record({
-    'owner' : IDL.Principal,
-    'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-  });
-  const VirtualBalancesResponse = IDL.Vec(IDL.Tuple(SupportedLedger, IDL.Nat));
   const NNSVECTOR = IDL.Service({
     'get_ledger_errors' : IDL.Func([], [IDL.Vec(IDL.Vec(IDL.Text))], ['query']),
-    'get_ledgers_info' : IDL.Func([], [IDL.Vec(LedgerInfo)], ['query']),
+    'get_ledgers_info' : IDL.Func([], [IDL.Vec(LedgerInfo__1)], ['query']),
     'icrc3_get_archives' : IDL.Func(
         [GetArchivesArgs],
         [GetArchivesResult],
@@ -434,6 +445,12 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(BlockType)],
         ['query'],
       ),
+    'icrc55_account_register' : IDL.Func([Account], [], []),
+    'icrc55_accounts' : IDL.Func(
+        [AccountsRequest],
+        [AccountsResponse],
+        ['query'],
+      ),
     'icrc55_command' : IDL.Func(
         [BatchCommandRequest],
         [BatchCommandResponse],
@@ -451,11 +468,6 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'icrc55_get_pylon_meta' : IDL.Func([], [PylonMetaResp], ['query']),
-    'icrc55_virtual_balances' : IDL.Func(
-        [VirtualBalancesRequest],
-        [VirtualBalancesResponse],
-        ['query'],
-      ),
   });
   return NNSVECTOR;
 };
