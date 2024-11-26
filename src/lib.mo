@@ -592,9 +592,13 @@ module {
                         MAXIMUM_DELAY_SECONDS,
                     );
 
+                    // Store the original delay in nodeMem, keeping it at the max if applicable
                     nodeMem.variables.dissolve_delay := #DelayDays(cleanedDelay / ONE_DAY_SECONDS);
 
-                    switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = nowSecs + cleanedDelay })) {
+                    // give the maximum a buffer so we can reach 8 years
+                    let adjustedDelay = if (cleanedDelay == MAXIMUM_DELAY_SECONDS) cleanedDelay + ONE_DAY_SECONDS else cleanedDelay;
+                    
+                    switch (await* neuron.setDissolveTimestamp({ dissolve_timestamp_seconds = nowSecs + adjustedDelay })) {
                         case (#ok(_)) {
                             NodeUtils.log_activity(nodeMem, "update_delay", #Ok);
                         };
