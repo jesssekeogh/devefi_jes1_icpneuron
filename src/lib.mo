@@ -97,7 +97,7 @@ module {
                 author = "jes1";
                 description = "Stake ICP neurons and receive maturity directly to your destination";
                 supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID)];
-                version = #beta([0, 1, 1]);
+                version = #beta([0, 1, 3]);
                 create_allowed = true;
                 ledger_slots = [
                     "Neuron"
