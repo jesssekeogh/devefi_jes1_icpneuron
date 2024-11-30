@@ -44,7 +44,7 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
     let billing : ICRC55.BillingPylon = {
         ledger = test_icrc;
         min_create_balance = 3000000;
-        operation_cost = 1000;
+        operation_cost = 20_000;
         freezing_threshold_days = 10;
         exempt_daily_cost_balance = null;
         split = {
