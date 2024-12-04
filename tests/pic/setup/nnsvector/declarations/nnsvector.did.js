@@ -154,6 +154,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const CommonCreateRequest = IDL.Record({
     'controllers' : IDL.Vec(Controller),
+    'initial_billing_amount' : IDL.Opt(IDL.Nat),
     'extractors' : IDL.Vec(LocalNodeId),
     'temp_id' : IDL.Nat32,
     'billing_option' : IDL.Nat,
@@ -182,6 +183,7 @@ export const idlFactory = ({ IDL }) => {
         'node_id' : LocalNodeId,
         'endpoint_idx' : EndpointIdx,
       }),
+      'temp' : IDL.Record({ 'id' : IDL.Nat32, 'source_idx' : EndpointIdx }),
       'external_account' : IDL.Variant({
         'ic' : Account,
         'other' : IDL.Vec(IDL.Nat8),
