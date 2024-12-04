@@ -70,6 +70,7 @@ export type CommandResponse = { 'modify_node' : ModifyNodeResponse } |
   { 'delete_node' : DeleteNodeResp };
 export interface CommonCreateRequest {
   'controllers' : Array<Controller>,
+  'initial_billing_amount' : [] | [bigint],
   'extractors' : Uint32Array | number[],
   'temp_id' : number,
   'billing_option' : bigint,
@@ -343,6 +344,7 @@ export interface TransactionRange { 'start' : bigint, 'length' : bigint }
 export interface TransferRequest {
   'to' : { 'node_billing' : LocalNodeId } |
     { 'node' : { 'node_id' : LocalNodeId, 'endpoint_idx' : EndpointIdx } } |
+    { 'temp' : { 'id' : number, 'source_idx' : EndpointIdx } } |
     {
       'external_account' : { 'ic' : Account } |
         { 'other' : Uint8Array | number[] }

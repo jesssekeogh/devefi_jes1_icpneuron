@@ -265,6 +265,25 @@ export class Manager {
   }
 
   public async createNode(stakeParams: StakeNodeParams): Promise<NodeShared> {
+    let [
+      {
+        endpoint: {
+          // @ts-ignore
+          ic: { account },
+        },
+      },
+    ] = await this.vectorActor.icrc55_accounts({
+      owner: this.me.getPrincipal(),
+      subaccount: [],
+    });
+
+    await this.sendIcrc(
+      account,
+      100_0001_0000n // more than enough (10_000 for fees)
+    );
+
+    await this.advanceBlocksAndTimeMinutes(3);
+
     let req: CommonCreateRequest = {
       controllers: [{ owner: this.me.getPrincipal(), subaccount: [] }],
       destinations: [
@@ -276,8 +295,9 @@ export class Manager {
       sources: [],
       extractors: [],
       affiliate: [],
-      temporary: true,
+      temporary: false,
       billing_option: stakeParams.billing_option,
+      initial_billing_amount: [100_0000_0000n],
       temp_id: 0,
     };
 
@@ -374,11 +394,7 @@ export class Manager {
 
   public async stakeNeuron(stakeParams: StakeNodeParams): Promise<NodeShared> {
     let node = await this.createNode(stakeParams);
-    await this.advanceBlocksAndTimeMinutes(1);
-
-    await this.payNodeBill(node);
-
-    await this.advanceBlocksAndTimeMinutes(2);
+    await this.advanceBlocksAndTimeMinutes(3);
 
     await this.sendIcp(
       this.getNodeSourceAccount(node, 0),
@@ -388,14 +404,6 @@ export class Manager {
 
     let refreshedNode = await this.getNode(node.id);
     return refreshedNode;
-  }
-
-  public async payNodeBill(node: NodeShared): Promise<void> {
-    let billingAccount = node.billing.account;
-    await this.sendIcrc(
-      billingAccount,
-      100_0000_0000n // more than enough
-    );
   }
 
   public async getNode(nodeId: NodeId): Promise<GetNodeResponse> {
