@@ -308,7 +308,10 @@ export interface PylonMetaResp {
 export type Shared = { 'devefi_jes1_icpneuron' : Shared__1 };
 export interface SharedNeuronCache {
   'dissolve_delay_seconds' : [] | [bigint],
+  'voting_power_refreshed_timestamp_seconds' : [] | [bigint],
+  'potential_voting_power' : [] | [bigint],
   'maturity_e8s_equivalent' : [] | [bigint],
+  'deciding_voting_power' : [] | [bigint],
   'cached_neuron_stake_e8s' : [] | [bigint],
   'created_timestamp_seconds' : [] | [bigint],
   'state' : [] | [number],

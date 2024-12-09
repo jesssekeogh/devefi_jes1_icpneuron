@@ -101,6 +101,7 @@ type SharedNeuronCache =
    age_seconds: opt nat64;
    cached_neuron_stake_e8s: opt nat64;
    created_timestamp_seconds: opt nat64;
+   deciding_voting_power: opt nat64;
    dissolve_delay_seconds: opt nat64;
    followees:
     vec record {
@@ -110,8 +111,10 @@ type SharedNeuronCache =
    maturity_e8s_equivalent: opt nat64;
    neuron_id: opt nat64;
    nonce: opt nat64;
+   potential_voting_power: opt nat64;
    state: opt int32;
    voting_power: opt nat64;
+   voting_power_refreshed_timestamp_seconds: opt nat64;
  };
 type Shared = variant {devefi_jes1_icpneuron: Shared__1;};
 type PylonMetaResp = 

@@ -44,8 +44,11 @@ module {
         state : ?Int32;
         voting_power : ?Nat64;
         age_seconds : ?Nat64;
+        voting_power_refreshed_timestamp_seconds : ?Nat64;
+        potential_voting_power : ?Nat64;
+        deciding_voting_power : ?Nat64;
     };
-    
+
     public type Neuron = GovT.Neuron;
 
     public type NeuronInfo = GovT.NeuronInfo;

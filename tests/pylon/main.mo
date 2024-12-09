@@ -81,7 +81,13 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
 
     // Components
     stable let mem_vec_icpneuron_1 = IcpNeuronVector.Mem.Vector.V1.new();
-    let devefi_jes1_icpneuron = IcpNeuronVector.Mod({ xmem = mem_vec_icpneuron_1; core; dvf });
+    stable let mem_vec_icpneuron_2 = IcpNeuronVector.Mem.Vector.V2.upgrade(mem_vec_icpneuron_1);
+
+    let devefi_jes1_icpneuron = IcpNeuronVector.Mod({
+        xmem = mem_vec_icpneuron_2;
+        core;
+        dvf;
+    });
 
     let vmod = T.VectorModules({ devefi_jes1_icpneuron });
 
@@ -95,7 +101,9 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
 
     private func proc() { devefi_jes1_icpneuron.run() };
 
-    private func async_proc() : async* () { await* devefi_jes1_icpneuron.runAsync() };
+    private func async_proc() : async* () {
+        await* devefi_jes1_icpneuron.runAsync();
+    };
 
     ignore Timer.recurringTimer<system>(
         #seconds 2,
@@ -139,11 +147,11 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         sys.icrc55_get_defaults(id);
     };
 
-    public shared ({caller}) func icrc55_account_register(acc : ICRC55.Account) : async () {
+    public shared ({ caller }) func icrc55_account_register(acc : ICRC55.Account) : async () {
         sys.icrc55_account_register(caller, acc);
     };
 
-    public query ({caller}) func icrc55_accounts(req : ICRC55.AccountsRequest) : async ICRC55.AccountsResponse {
+    public query ({ caller }) func icrc55_accounts(req : ICRC55.AccountsRequest) : async ICRC55.AccountsResponse {
         sys.icrc55_accounts(caller, req);
     };
 
