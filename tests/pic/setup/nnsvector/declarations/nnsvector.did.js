@@ -228,7 +228,10 @@ export const idlFactory = ({ IDL }) => {
   });
   const SharedNeuronCache = IDL.Record({
     'dissolve_delay_seconds' : IDL.Opt(IDL.Nat64),
+    'voting_power_refreshed_timestamp_seconds' : IDL.Opt(IDL.Nat64),
+    'potential_voting_power' : IDL.Opt(IDL.Nat64),
     'maturity_e8s_equivalent' : IDL.Opt(IDL.Nat64),
+    'deciding_voting_power' : IDL.Opt(IDL.Nat64),
     'cached_neuron_stake_e8s' : IDL.Opt(IDL.Nat64),
     'created_timestamp_seconds' : IDL.Opt(IDL.Nat64),
     'state' : IDL.Opt(IDL.Int32),
