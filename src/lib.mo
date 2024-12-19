@@ -102,7 +102,7 @@ module {
                 author = "jes1";
                 description = "Stake ICP neurons and receive maturity directly to your destination";
                 supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID)];
-                version = #beta([0, 2, 0]);
+                version = #beta([0, 2, 1]);
                 create_allowed = true;
                 ledger_slots = [
                     "Neuron"
@@ -131,6 +131,7 @@ module {
             label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
                 if (not vec.active) continue vec_loop;
+                if (vec.billing.frozen) continue vec_loop; // don't run if frozen
                 if (Option.isSome(vec.billing.expires)) continue vec_loop; // don't allow staking until fee paid
                 Run.single(vid, vec, nodeMem);
             };
@@ -140,6 +141,7 @@ module {
             label vec_loop for ((vid, nodeMem) in Map.entries(mem.main)) {
                 let ?vec = core.getNodeById(vid) else continue vec_loop;
                 if (not vec.active) continue vec_loop;
+                if (vec.billing.frozen) continue vec_loop;
                 if (Option.isSome(vec.billing.expires)) continue vec_loop;
                 if (NodeUtils.node_ready(nodeMem)) {
                     await* Run.singleAsync(vid, vec, nodeMem);
@@ -482,7 +484,7 @@ module {
                 neuronInfos : Map.Map<Nat64, I.NeuronInfo>,
                 fullNeurons : Map.Map<Blob, I.Neuron>,
             ) : () {
-                let spawningNeurons = Buffer.Buffer<Ver2.NeuronCache>(7); // likely max of 7 neurons (one per day)
+                let spawningNeurons = Buffer.Buffer<Ver2.NeuronCache>(8); // max of 7 spawning + 1 ready
 
                 // finds neurons that this vector owner has created and adds them to the spawning_neurons
                 // start at 1, 0 is reserved for the vectors main neuron
