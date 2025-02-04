@@ -102,7 +102,7 @@ module {
                 author = "jes1";
                 description = "Stake ICP neurons and receive maturity directly to your destination";
                 supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID)];
-                version = #beta([0, 2, 1]);
+                version = #beta([0, 2, 2]);
                 create_allowed = true;
                 ledger_slots = [
                     "Neuron"
@@ -260,7 +260,7 @@ module {
 
             let shouldDelete = switch (t.cache.cached_neuron_stake_e8s) {
                 case (?cachedStake) { if (cachedStake > 0) false else true };
-                case (null) { false };
+                case (null) { true };
             };
 
             if (shouldDelete) {
