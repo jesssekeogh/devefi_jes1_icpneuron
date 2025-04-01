@@ -106,12 +106,12 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
     };
 
     ignore Timer.recurringTimer<system>(
-        #seconds 2,
+        #seconds 30,
         func() : async () { core.heartbeat(proc) },
     );
 
     ignore Timer.recurringTimer<system>(
-        #seconds 2,
+        #seconds 45,
         func() : async () { await* async_proc() },
     );
 

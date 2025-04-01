@@ -22,7 +22,7 @@ export const NNS_STATE_PATH = resolve(
 );
 
 export const NNS_SUBNET_ID =
-  "mawzk-pspoy-qnbwv-qsdnd-qg6qx-x6gja-lvszb-bvzh6-oxohh-6g45e-sqe";
+  "xr5zq-dc2i5-5bzsv-3wsdt-o7vnx-nxagi-53mmp-lpfzv-pcji3-27tpj-jqe";
 
 //
 // helper constants:

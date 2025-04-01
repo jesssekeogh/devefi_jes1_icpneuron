@@ -44,12 +44,15 @@ module {
 
         let ICP_LEDGER_CANISTER_ID = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
 
+        // Number of recent subaccounts to query (leaves plenty of room to catch up)
+        let MAX_SUBACCOUNTS_TO_QUERY : Nat32 = 30;
+
         // Interval for cache check when no neuron refresh is pending.
         // Maturity accumulates only once per day, allowing at most one neuron spawn daily.
         let TIMEOUT_NANOS_NO_REFRESH_PENDING : Nat64 = (12 * 60 * 60 * 1_000_000_000); // every 12 hours
 
         // Timeout interval for when a neuron refresh is pending.
-        let TIMEOUT_NANOS_REFRESH_PENDING : Nat64 = (5 * 60 * 1_000_000_000); // every 5 minutes
+        let TIMEOUT_NANOS_REFRESH_PENDING : Nat64 = (3 * 60 * 1_000_000_000); // every 3 minutes
 
         let DEFAULT_NEURON_FOLLOWEE : Nat64 = 6914974521667616512; // Rakeoff.io named neuron
 
@@ -424,20 +427,52 @@ module {
         };
 
         module CacheManager {
-            public func refresh_cache(nodeMem : Ver2.NodeMem, vid : T.NodeId) : async* () {
-                let ?nid = nodeMem.cache.neuron_id else return;
+            private func compute_recent_subaccounts(vid : T.NodeId, localIdx : Nat32) : [{
+                subaccount : Blob;
+            }] {
+                let buffer = Buffer.Buffer<{ subaccount : Blob }>(Nat32.toNat(MAX_SUBACCOUNTS_TO_QUERY));
 
-                // retrieves all neurons owned by the pylon, filtering for spawning neurons
-                // Explicitly includes the vector neuron, even if empty, while excluding all other empty neurons.
+                // Always include the main neuron's subaccount (index 0)
+                let mainNonce = NodeUtils.get_neuron_nonce(vid, 0);
+                let mainSubaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), mainNonce);
+                buffer.add({ subaccount = mainSubaccount });
+
+                // Compute how many recent indices to check based on localIdx
+                let startIdx : Nat32 = if (localIdx >= (MAX_SUBACCOUNTS_TO_QUERY) - 1) {
+                    localIdx - ((MAX_SUBACCOUNTS_TO_QUERY) - 1);
+                } else {
+                    1;
+                };
+
+                // Add the most recent subaccounts (up to MAX_SUBACCOUNTS_TO_QUERY)
+                label idxLoop for (idx in Iter.range(Nat32.toNat(startIdx), Nat32.toNat(localIdx))) {
+                    let nonce = NodeUtils.get_neuron_nonce(vid, Nat32.fromNat(idx));
+                    let subaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce);
+                    buffer.add({ subaccount = subaccount });
+                };
+
+                return Buffer.toArray(buffer);
+            };
+
+            public func refresh_cache(nodeMem : Ver2.NodeMem, vid : T.NodeId) : async* () {
+                if (Option.isNull(nodeMem.cache.neuron_id)) return;
+
+                // Compute the subaccounts to query
+                let subaccounts = compute_recent_subaccounts(vid, nodeMem.internals.local_idx);
+
+                // Retrieve neurons owned by this canister using computed subaccounts
                 let { full_neurons; neuron_infos } = await* nns.listNeurons({
-                    neuron_ids = [nid];
-                    include_readable = true;
-                    include_public = true;
                     include_empty = false;
+                    include_public = false;
+                    include_readable = false;
+                    neuron_ids = [];
+                    neuron_subaccounts = ?subaccounts;
+                    page_number = null;
+                    page_size = null;
                 });
 
+                // Convert results to maps for efficient lookups
                 let neuronInfos = Map.fromIter<Nat64, I.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
-
                 let fullNeurons = Map.fromIterMap<Blob, I.Neuron, I.Neuron>(
                     full_neurons.vals(),
                     Map.bhash,
@@ -486,9 +521,15 @@ module {
             ) : () {
                 let spawningNeurons = Buffer.Buffer<Ver2.NeuronCache>(8); // max of 7 spawning + 1 ready
 
-                // finds neurons that this vector owner has created and adds them to the spawning_neurons
-                // start at 1, 0 is reserved for the vectors main neuron
-                label idxLoop for (idx in Iter.range(1, Nat32.toNat(nodeMem.internals.local_idx))) {
+                // Use the same logic as in compute_recent_subaccounts
+                let startIdx : Nat32 = if (nodeMem.internals.local_idx >= (MAX_SUBACCOUNTS_TO_QUERY : Nat32) - 1) {
+                    nodeMem.internals.local_idx - ((MAX_SUBACCOUNTS_TO_QUERY : Nat32) - 1);
+                } else {
+                    1;
+                };
+
+                // Only iterate through the recently queried spawning neurons
+                label idxLoop for (idx in Iter.range(Nat32.toNat(startIdx), Nat32.toNat(nodeMem.internals.local_idx))) {
                     let spawningNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, Nat32.fromNat(idx));
                     let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), spawningNonce);
 
@@ -496,28 +537,31 @@ module {
                     let ?nid = full.id else continue idxLoop;
                     let ?info = Map.get(neuronInfos, Map.n64hash, nid.id) else continue idxLoop;
 
-                    // we are not fetching empty neurons, so if a neuron is found it has ICP in it
-                    spawningNeurons.add({
-                        var neuron_id = ?nid.id;
-                        var nonce = ?spawningNonce;
-                        var maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
-                        var cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
-                        var created_timestamp_seconds = ?full.created_timestamp_seconds;
-                        var followees = full.followees;
-                        var dissolve_delay_seconds = ?info.dissolve_delay_seconds;
-                        var state = ?info.state;
-                        var voting_power = ?info.voting_power;
-                        var age_seconds = ?info.age_seconds;
-                        var voting_power_refreshed_timestamp_seconds = full.voting_power_refreshed_timestamp_seconds;
-                        var potential_voting_power = full.potential_voting_power;
-                        var deciding_voting_power = full.deciding_voting_power;
-                    });
+                    // only add the neuron if the maturity or stake is greater than 0
+                    if (full.maturity_e8s_equivalent > 0 or full.cached_neuron_stake_e8s > 0) {
+                        spawningNeurons.add({
+                            var neuron_id = ?nid.id;
+                            var nonce = ?spawningNonce;
+                            var maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
+                            var cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
+                            var created_timestamp_seconds = ?full.created_timestamp_seconds;
+                            var followees = full.followees;
+                            var dissolve_delay_seconds = ?info.dissolve_delay_seconds;
+                            var state = ?info.state;
+                            var voting_power = ?info.voting_power;
+                            var age_seconds = ?info.age_seconds;
+                            var voting_power_refreshed_timestamp_seconds = full.voting_power_refreshed_timestamp_seconds;
+                            var potential_voting_power = full.potential_voting_power;
+                            var deciding_voting_power = full.deciding_voting_power;
+                        });
+                    };
                 };
 
                 nodeMem.internals.spawning_neurons := Buffer.toArray(spawningNeurons);
             };
 
             public func delay_changed(nodeMem : Ver2.NodeMem) : Bool {
+                if (Option.isNull(nodeMem.cache.neuron_id)) return false;
                 switch (nodeMem.variables.dissolve_status) {
                     case (#Dissolving) {
                         return false; // don't update delay if dissolving
@@ -535,6 +579,7 @@ module {
             };
 
             public func followee_changed(nodeMem : Ver2.NodeMem, topic : Int32) : Bool {
+                if (Option.isNull(nodeMem.cache.neuron_id)) return false;
                 let currentFollowees = Map.fromIter<Int32, { followees : [{ id : Nat64 }] }>(nodeMem.cache.followees.vals(), Map.i32hash);
                 let followeeToSet : Nat64 = switch (nodeMem.variables.followee) {
                     case (#Default) { DEFAULT_NEURON_FOLLOWEE };
@@ -550,6 +595,7 @@ module {
             };
 
             public func dissolving_changed(nodeMem : Ver2.NodeMem) : Bool {
+                if (Option.isNull(nodeMem.cache.neuron_id)) return false;
                 let ?dissolvingState = nodeMem.cache.state else return false;
 
                 switch (nodeMem.variables.dissolve_status) {

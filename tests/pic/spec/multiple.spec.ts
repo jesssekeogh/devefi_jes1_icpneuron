@@ -114,7 +114,7 @@ describe("Multiple", () => {
   it("should spawn maturity in multiple neurons", async () => {
     await maturity.createMotionProposal(maturityFollowee);
 
-    await manager.advanceBlocksAndTimeDays(8);
+    await manager.advanceBlocksAndTimeDays(10);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
@@ -131,7 +131,7 @@ describe("Multiple", () => {
   it("should claim maturity from multiple neurons", async () => {
     let oldBalance = await manager.getMyBalances();
 
-    await manager.advanceBlocksAndTimeDays(8);
+    await manager.advanceBlocksAndTimeDays(10);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);

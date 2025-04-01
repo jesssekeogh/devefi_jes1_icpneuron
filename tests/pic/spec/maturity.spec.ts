@@ -35,8 +35,7 @@ describe("Maturity", () => {
   it("should accrue maturity", async () => {
     await maturity.createMotionProposal(maturityFollowee);
 
-    await manager.advanceTime(7200) // 5 days in mins
-    await manager.advanceBlocks(10);
+    await manager.advanceBlocksAndTimeDays(5);
 
     node = await manager.getNode(node.id);
     expect(

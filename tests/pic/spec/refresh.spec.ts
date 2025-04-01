@@ -66,7 +66,7 @@ describe("Refresh", () => {
     }
   });
 
-  it("should refesh neuron after 5 minutes when config changes", async () => {
+  it("should refesh neuron after 3 minutes when config changes", async () => {
     const oldDoneTimestamp =
       node.custom[0].devefi_jes1_icpneuron.internals.updating;
 
