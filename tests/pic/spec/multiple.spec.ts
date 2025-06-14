@@ -1,5 +1,5 @@
 import { Manager } from "../setup/manager.ts";
-import { NodeShared } from "../setup/nnsvector/declarations/nnsvector.did.js";
+import { NodeShared } from "../setup/nns_test_pylon/declarations/nns_test_pylon.did.js";
 import { Maturity } from "../setup/maturity.ts";
 import {
   AMOUNT_TO_STAKE,

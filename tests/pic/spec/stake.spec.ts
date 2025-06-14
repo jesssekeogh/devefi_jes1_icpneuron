@@ -1,5 +1,5 @@
 import { Manager } from "../setup/manager.ts";
-import { NodeShared } from "../setup/nnsvector/declarations/nnsvector.did.js";
+import { NodeShared } from "../setup/nns_test_pylon/declarations/nns_test_pylon.did.js";
 import {
   AMOUNT_TO_STAKE,
   EXPECTED_TRANSACTION_FEES,

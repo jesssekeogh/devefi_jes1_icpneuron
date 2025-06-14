@@ -427,7 +427,7 @@ export const idlFactory = ({ IDL }) => {
     }),
     'modules' : IDL.Vec(ModuleMeta),
   });
-  const NNSVECTOR = IDL.Service({
+  const NNSTESTPYLON = IDL.Service({
     'get_ledger_errors' : IDL.Func([], [IDL.Vec(IDL.Vec(IDL.Text))], ['query']),
     'get_ledgers_info' : IDL.Func([], [IDL.Vec(LedgerInfo__1)], ['query']),
     'icrc3_get_archives' : IDL.Func(
@@ -474,6 +474,6 @@ export const idlFactory = ({ IDL }) => {
       ),
     'icrc55_get_pylon_meta' : IDL.Func([], [PylonMetaResp], ['query']),
   });
-  return NNSVECTOR;
+  return NNSTESTPYLON;
 };
 export const init = ({ IDL }) => { return []; };

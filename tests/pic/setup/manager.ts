@@ -1,5 +1,5 @@
 import {
-  _SERVICE as NNSVECTOR,
+  _SERVICE as NNSTESTPYLON,
   CreateRequest,
   ModifyNodeRequest,
   ModifyRequest,
@@ -8,7 +8,7 @@ import {
   LocalNodeId as NodeId,
   GetNodeResponse,
   BatchCommandResponse,
-} from "./nnsvector/declarations/nnsvector.did.js";
+} from "./nns_test_pylon/declarations/nns_test_pylon.did.js";
 import {
   _SERVICE as ICRCLEDGER,
   Account,
@@ -22,19 +22,14 @@ import {
   _SERVICE as LEDGER,
   idlFactory as ledgerIdlFactory,
 } from "./nns/ledger";
-import {
-  Actor,
-  PocketIc,
-  createIdentity,
-  SubnetStateType,
-} from "@hadronous/pic";
+import { Actor, PocketIc, createIdentity, SubnetStateType } from "@dfinity/pic";
 import { Principal } from "@dfinity/principal";
 import {
   GOVERNANCE_CANISTER_ID,
   ICP_LEDGER_CANISTER_ID,
   NNS_ROOT_CANISTER_ID,
 } from "./constants.ts";
-import { NNSVector, ICRCLedger } from "./index";
+import { NnsTestPylon, ICRCLedger } from "./index";
 import { minterIdentity } from "./nns/identity.ts";
 import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
 
@@ -60,7 +55,7 @@ interface NeuronStates {
 export class Manager {
   private readonly me: ReturnType<typeof createIdentity>;
   private readonly pic: PocketIc;
-  private readonly vectorActor: Actor<NNSVECTOR>;
+  private readonly vectorActor: Actor<NNSTESTPYLON>;
   private readonly icrcActor: Actor<ICRCLEDGER>;
   private readonly nnsActor: Actor<GOVERNANCE>;
   private readonly ledgerActor: Actor<LEDGER>;
@@ -68,7 +63,7 @@ export class Manager {
   constructor(
     pic: PocketIc,
     me: ReturnType<typeof createIdentity>,
-    vectorActor: Actor<NNSVECTOR>,
+    vectorActor: Actor<NNSTESTPYLON>,
     icrcActor: Actor<ICRCLEDGER>,
     nnsActor: Actor<GOVERNANCE>,
     ledgerActor: Actor<LEDGER>
@@ -93,7 +88,6 @@ export class Manager {
         state: {
           type: SubnetStateType.FromPath,
           path: NNS_STATE_PATH,
-          subnetId: Principal.fromText(NNS_SUBNET_ID),
         },
       },
       application: [{ state: { type: SubnetStateType.New } }],
@@ -108,7 +102,7 @@ export class Manager {
     let icrcFixture = await ICRCLedger(pic, identity.getPrincipal());
 
     // setup vector
-    let vectorFixture = await NNSVector(pic);
+    let vectorFixture = await NnsTestPylon(pic);
 
     // setup nns
     let govActor = pic.createActor<GOVERNANCE>(
@@ -179,7 +173,7 @@ export class Manager {
   public getMe(): Principal {
     return this.me.getPrincipal();
   }
-  public getVector(): Actor<NNSVECTOR> {
+  public getVector(): Actor<NNSTESTPYLON> {
     return this.vectorActor;
   }
 

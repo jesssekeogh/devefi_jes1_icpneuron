@@ -7,11 +7,12 @@ import Timer "mo:base/Timer";
 import U "mo:devefi/utils";
 import T "./vector_modules";
 import MU_sys "mo:devefi/sys";
+import Chrono "mo:chronotrinite/client";
 
 import IcpNeuronVector "../../src";
 import Core "mo:devefi/core";
 
-shared ({ caller = owner }) actor class NNSVECTOR() = this {
+shared ({ caller = owner }) actor class NNSTESTPYLON() = this {
 
     let me_can = Principal.fromActor(this);
     stable let chain_mem = Rechain.Mem.Rechain.V1.new();
@@ -29,9 +30,16 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         me_can;
     });
 
+    // chrono
+    stable let chrono_mem_v1 = Chrono.Mem.ChronoClient.V1.new({
+        router = Principal.fromText("hik73-dyaaa-aaaal-qsaqa-cai");
+    });
+    
+    let chrono = Chrono.ChronoClient<system>({ xmem = chrono_mem_v1 });
+
     stable let dvf_mem_1 = Ledgers.Mem.Ledgers.V1.new();
 
-    let dvf = Ledgers.Ledgers<system>({ xmem = dvf_mem_1; me_can });
+    let dvf = Ledgers.Ledgers<system>({ xmem = dvf_mem_1; me_can; chrono });
 
     stable let mem_core_1 = Core.Mem.Core.V1.new();
 
@@ -46,7 +54,6 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
         min_create_balance = 3000000;
         operation_cost = 20_000;
         freezing_threshold_days = 10;
-        exempt_daily_cost_balance = null;
         split = {
             platform = 20;
             pylon = 20;
@@ -64,6 +71,7 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
     };
 
     let core = Core.Mod<system>({
+        _chrono = chrono;
         xmem = mem_core_1;
         settings = {
             BILLING = billing;
@@ -75,7 +83,6 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
             ALLOW_TEMP_NODE_CREATION = true;
         };
         dvf;
-        chain;
         me_can;
     });
 
@@ -86,7 +93,6 @@ shared ({ caller = owner }) actor class NNSVECTOR() = this {
     let devefi_jes1_icpneuron = IcpNeuronVector.Mod({
         xmem = mem_vec_icpneuron_2;
         core;
-        dvf;
     });
 
     let vmod = T.VectorModules({ devefi_jes1_icpneuron });

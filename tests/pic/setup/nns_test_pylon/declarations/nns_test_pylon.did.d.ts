@@ -257,7 +257,7 @@ export interface ModuleMeta {
   'temporary_allowed' : boolean,
   'author_account' : Account,
 }
-export interface NNSVECTOR {
+export interface NNSTESTPYLON {
   'get_ledger_errors' : ActorMethod<[], Array<Array<string>>>,
   'get_ledgers_info' : ActorMethod<[], Array<LedgerInfo__1>>,
   'icrc3_get_archives' : ActorMethod<[GetArchivesArgs], GetArchivesResult>,
@@ -375,6 +375,6 @@ export type ValueMap = [string, Value];
 export type Version = { 'alpha' : Uint16Array | number[] } |
   { 'beta' : Uint16Array | number[] } |
   { 'release' : Uint16Array | number[] };
-export interface _SERVICE extends NNSVECTOR {}
+export interface _SERVICE extends NNSTESTPYLON {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

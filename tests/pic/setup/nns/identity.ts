@@ -8,7 +8,10 @@ const minterPublicKey = 'Uu8wv55BKmk9ZErr6OIt5XR1kpEGXcOSOC1OYzrAwuk=';
 const minterPrivateKey =
   'N3HB8Hh2PrWqhWH2Qqgr1vbU9T3gb1zgdBD8ZOdlQnVS7zC/nkEqaT1kSuvo4i3ldHWSkQZdw5I4LU5jOsDC6Q==';
 
+const pubArr = Uint8Array.from(Buffer.from(minterPublicKey, 'base64'));
+const privArr = Uint8Array.from(Buffer.from(minterPrivateKey, 'base64'));
+
 export const minterIdentity = Ed25519KeyIdentity.fromKeyPair(
-  base64ToUInt8Array(minterPublicKey),
-  base64ToUInt8Array(minterPrivateKey),
+  pubArr.buffer,   // exactly 32 bytes
+  privArr.buffer,  // exactly 64 bytes
 );

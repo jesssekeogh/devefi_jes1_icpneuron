@@ -1,15 +1,15 @@
 {
   "canisters": {
-    "nnsvector": {
+    "nns_test_pylon": {
       "main": "tests/pylon/main.mo",
       "type": "motoko",
       "gzip": true,
       "declarations": {
         "node_compatibility": true,
-        "output": "tests/pic/setup/nnsvector/declarations"
+        "output": "tests/pic/setup/nns_test_pylon/declarations"
       },
       "post_install": [
-        "cp .dfx/ic/canisters/nnsvector/nnsvector.wasm.gz tests/pic/setup/nnsvector"
+        "cp .dfx/ic/canisters/nns_test_pylon/nns_test_pylon.wasm.gz tests/pic/setup/nns_test_pylon"
       ]
     }
   },

@@ -1,6 +1,6 @@
 import { _SERVICE as GOVERNANCE } from "./nns/governance";
 import { _SERVICE as LEDGER, SubAccount, Account } from "./nns/ledger";
-import { Actor } from "@hadronous/pic";
+import { Actor } from "@dfinity/pic";
 import { createHash, randomBytes } from "node:crypto";
 import { Principal } from "@dfinity/principal";
 import { GOVERNANCE_CANISTER_ID } from "./constants";

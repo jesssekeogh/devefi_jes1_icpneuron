@@ -13,13 +13,7 @@ export const NNS_ROOT_CANISTER_ID = Principal.fromText(
   "r7inp-6aaaa-aaaaa-aaabq-cai"
 );
 
-export const NNS_STATE_PATH = resolve(
-  __dirname,
-  "..",
-  "nns_state",
-  "node-100",
-  "state"
-);
+export const NNS_STATE_PATH = resolve(__dirname, "..", "nns_state");
 
 export const NNS_SUBNET_ID =
   "xr5zq-dc2i5-5bzsv-3wsdt-o7vnx-nxagi-53mmp-lpfzv-pcji3-27tpj-jqe";

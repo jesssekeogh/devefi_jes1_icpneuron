@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { PocketIc } from "@hadronous/pic";
+import { PocketIc } from "@dfinity/pic";
 import {
   _SERVICE as ICRCLedgerService,
   idlFactory,
@@ -41,7 +41,7 @@ export async function ICRCLedger(pic: PocketIc, me: Principal) {
     },
   };
 
-  const subnets = pic.getApplicationSubnets();
+  const subnets = await pic.getApplicationSubnets();
 
   const fixture = await pic.setupCanister<ICRCLedgerService>({
     idlFactory,
