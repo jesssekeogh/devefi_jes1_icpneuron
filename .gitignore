@@ -21,4 +21,5 @@ dist/
 .mops
 canister.sh
 upgrade.sh
+router.sh
 tests/pic/nns_state

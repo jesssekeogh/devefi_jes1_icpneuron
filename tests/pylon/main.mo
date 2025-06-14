@@ -32,7 +32,7 @@ shared ({ caller = owner }) actor class NNSTESTPYLON() = this {
 
     // chrono
     stable let chrono_mem_v1 = Chrono.Mem.ChronoClient.V1.new({
-        router = Principal.fromText("hik73-dyaaa-aaaal-qsaqa-cai");
+        router = Principal.fromText("7uieb-cx777-77776-qaaaq-cai"); // test chronotrinite router
     });
     
     let chrono = Chrono.ChronoClient<system>({ xmem = chrono_mem_v1 });

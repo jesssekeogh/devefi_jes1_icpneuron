@@ -11,6 +11,18 @@
       "post_install": [
         "cp .dfx/ic/canisters/nns_test_pylon/nns_test_pylon.wasm.gz tests/pic/setup/nns_test_pylon"
       ]
+    },
+    "router": {
+      "main": "tests/router/main.mo",
+      "type": "motoko",
+      "gzip": true,
+      "declarations": {
+        "node_compatibility": true,
+        "output": "tests/pic/setup/router/declarations"
+      },
+      "post_install": [
+        "cp .dfx/ic/canisters/router/router.wasm.gz tests/pic/setup/router"
+      ]
     }
   },
   "defaults": {

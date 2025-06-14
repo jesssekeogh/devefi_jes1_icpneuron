@@ -32,6 +32,7 @@ import {
 import { NnsTestPylon, ICRCLedger } from "./index";
 import { minterIdentity } from "./nns/identity.ts";
 import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
+import Router from "./router/router.ts";
 
 interface NeuronParams {
   dissolve_delay: { Default: null } | { DelayDays: bigint };
@@ -100,6 +101,13 @@ export class Manager {
 
     // setup ICRC
     let icrcFixture = await ICRCLedger(pic, identity.getPrincipal());
+
+    // setup chrono router
+    // we are not testing the router here, but we need it to spin up a pylon
+    // pass time to allow router to setup slices
+    await Router(pic);
+    await pic.advanceTime(240 * 60 * 1000);
+    await pic.tick(240);
 
     // setup vector
     let vectorFixture = await NnsTestPylon(pic);

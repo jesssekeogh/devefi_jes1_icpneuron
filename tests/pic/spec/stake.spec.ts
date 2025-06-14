@@ -168,7 +168,7 @@ describe("Stake", () => {
     ).toBeGreaterThan(0n);
 
     await manager.advanceTime(4300000); // 8 years
-    await manager.advanceBlocks(100);
+    await manager.advanceBlocks(500);
 
     await manager.advanceBlocksAndTimeDays(1);
     node = await manager.getNode(node.id);
@@ -178,6 +178,7 @@ describe("Stake", () => {
   });
 
   it("should re-use empty neuron", async () => {
+
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.cached_neuron_stake_e8s[0]
     ).toBe(0n);
@@ -221,7 +222,7 @@ describe("Stake", () => {
     ).toBeGreaterThan(0n);
 
     await manager.advanceTime(4300000); // 8 years
-    await manager.advanceBlocks(100);
+    await manager.advanceBlocks(500);
 
     await manager.advanceBlocksAndTimeDays(1);
     node = await manager.getNode(node.id);

@@ -96,7 +96,7 @@ describe("Multiple", () => {
       }
     }
 
-    await manager.advanceBlocksAndTimeMinutes(5);
+    await manager.advanceBlocksAndTimeHours(5);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
@@ -115,6 +115,7 @@ describe("Multiple", () => {
     await maturity.createMotionProposal(maturityFollowee);
 
     await manager.advanceBlocksAndTimeDays(10);
+    await manager.advanceBlocksAndTimeHours(3);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
@@ -132,7 +133,8 @@ describe("Multiple", () => {
     let oldBalance = await manager.getMyBalances();
 
     await manager.advanceBlocksAndTimeDays(10);
-
+    await manager.advanceBlocksAndTimeHours(3);
+    
     for (let node of nodes) {
       node = await manager.getNode(node.id);
       expect(

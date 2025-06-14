@@ -1,0 +1,18 @@
+type SetAccessRequest = 
+ vec record {
+       principal;
+       text;
+     };
+type GetSlicesResp = 
+ vec record {
+       principal;
+       nat32;
+       nat32;
+     };
+type CanisterInfo = record {cycles: nat;};
+service : {
+  canister_info: () -> (CanisterInfo) query;
+  get_slices: () -> (GetSlicesResp) query;
+  set_access: (req: SetAccessRequest) -> ();
+  show_log: () -> (vec opt text) query;
+}
