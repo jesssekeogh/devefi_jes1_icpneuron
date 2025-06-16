@@ -8,7 +8,7 @@ license = ""
 
 [dependencies]
 base = "0.13.3"
-neuro = "0.7.6"
+neuro = "0.8.0"
 map = "9.0.1"
 
 [dev-dependencies]

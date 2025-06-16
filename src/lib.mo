@@ -477,7 +477,7 @@ module {
                     full_neurons.vals(),
                     Map.bhash,
                     func(neuron : I.Neuron) : ?(Blob, I.Neuron) {
-                        return ?(Blob.fromArray(neuron.account), neuron);
+                        return ?(neuron.account, neuron);
                     },
                 );
 
@@ -778,9 +778,7 @@ module {
                         let neuron = NNS.Neuron({
                             nns_canister_id = NNS_CANISTER_ID;
                             neuron_id_or_subaccount = #Subaccount(
-                                Blob.toArray(
-                                    Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce)
-                                )
+                                Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce)
                             );
                         });
 
