@@ -13,6 +13,7 @@ import Nat32 "mo:base/Nat32";
 import Core "mo:devefi/core";
 import Ver1 "./memory/v1";
 import Ver2 "./memory/v2";
+import Ver3 "./memory/v3";
 import I "./interface";
 import { NNS } "mo:neuro";
 import Tools "mo:neuro/tools";
@@ -26,10 +27,11 @@ module {
         public module Vector {
             public let V1 = Ver1;
             public let V2 = Ver2;
+            public let V3 = Ver3;
         };
     };
 
-    let M = Mem.Vector.V2;
+    let M = Mem.Vector.V3;
 
     public let ID = "devefi_jes1_icpneuron";
 
@@ -105,7 +107,7 @@ module {
                 author = "jes1";
                 description = "Stake ICP neurons and receive maturity directly to your destination";
                 supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID)];
-                version = #beta([0, 2, 3]);
+                version = #beta([0, 3, 0]);
                 create_allowed = true;
                 ledger_slots = [
                     "Neuron"
@@ -116,7 +118,7 @@ module {
                         transaction_fee = #transaction_percentage_fee_e8s(5_000_000); // 5% fee
                     },
                     {
-                        cost_per_day = 3_1700_0000; // 3.17 tokens
+                        cost_per_day = 3_1700_0000; // 3.17 NTN
                         transaction_fee = #none;
                     },
                 ];
@@ -211,7 +213,7 @@ module {
                     await* NeuronActions.update_delay(nodeMem);
                     await* NeuronActions.update_followees(nodeMem);
                     await* NeuronActions.update_dissolving(nodeMem);
-                    await* NeuronActions.spawn_maturity(nodeMem, vid);
+                    await* NeuronActions.disburse_maturity(nodeMem, vec);
                     await* NeuronActions.claim_maturity(nodeMem, vec);
                     await* NeuronActions.disburse_neuron(nodeMem, vec);
                     await* NeuronActions.refresh_voting_power(nodeMem);
@@ -251,6 +253,7 @@ module {
                     var voting_power_refreshed_timestamp_seconds = null;
                     var potential_voting_power = null;
                     var deciding_voting_power = null;
+                    var maturity_disbursements_in_progress = null;
                 };
                 var log = [];
             };
@@ -298,7 +301,7 @@ module {
                     refresh_idx = t.internals.refresh_idx;
                     spawning_neurons = Array.map(
                         t.internals.spawning_neurons,
-                        func(neuron : Ver2.NeuronCache) : I.SharedNeuronCache {
+                        func(neuron : Ver3.NeuronCache) : I.SharedNeuronCache {
                             {
                                 neuron_id = neuron.neuron_id;
                                 nonce = neuron.nonce;
@@ -313,6 +316,7 @@ module {
                                 voting_power_refreshed_timestamp_seconds = neuron.voting_power_refreshed_timestamp_seconds;
                                 potential_voting_power = neuron.potential_voting_power;
                                 deciding_voting_power = neuron.deciding_voting_power;
+                                maturity_disbursements_in_progress = neuron.maturity_disbursements_in_progress;
                             };
                         },
                     );
@@ -331,6 +335,7 @@ module {
                     voting_power_refreshed_timestamp_seconds = t.cache.voting_power_refreshed_timestamp_seconds;
                     potential_voting_power = t.cache.potential_voting_power;
                     deciding_voting_power = t.cache.deciding_voting_power;
+                    maturity_disbursements_in_progress = t.cache.maturity_disbursements_in_progress;
                 };
                 log = t.log;
             };
@@ -361,7 +366,7 @@ module {
         });
 
         module NodeUtils {
-            public func node_ready(nodeMem : Ver2.NodeMem) : Bool {
+            public func node_ready(nodeMem : Ver3.NodeMem) : Bool {
                 // Determine the appropriate timeout based on whether the neuron should be refreshed
                 let timeout = if (node_needs_refresh(nodeMem)) {
                     TIMEOUT_NANOS_REFRESH_PENDING;
@@ -385,7 +390,7 @@ module {
                 };
             };
 
-            private func node_needs_refresh(nodeMem : Ver2.NodeMem) : Bool {
+            private func node_needs_refresh(nodeMem : Ver3.NodeMem) : Bool {
                 return (
                     Option.isSome(nodeMem.internals.refresh_idx) or
                     CacheManager.followee_changed(nodeMem, GOVERNANCE_TOPICS[0]) or
@@ -394,16 +399,16 @@ module {
                 );
             };
 
-            public func node_done(nodeMem : Ver2.NodeMem) : () {
+            public func node_done(nodeMem : Ver3.NodeMem) : () {
                 nodeMem.internals.updating := #Done(U.now());
             };
 
-            public func tx_sent(nodeMem : Ver2.NodeMem, txId : Nat64) : () {
+            public func tx_sent(nodeMem : Ver3.NodeMem, txId : Nat64) : () {
                 nodeMem.internals.refresh_idx := ?txId;
             };
 
-            public func log_activity(nodeMem : Ver2.NodeMem, operation : Text, result : { #Ok; #Err : Text }) : () {
-                let log = Buffer.fromArray<Ver2.Activity>(nodeMem.log);
+            public func log_activity(nodeMem : Ver3.NodeMem, operation : Text, result : { #Ok; #Err : Text }) : () {
+                let log = Buffer.fromArray<Ver3.Activity>(nodeMem.log);
 
                 switch (result) {
                     case (#Ok(())) {
@@ -454,7 +459,7 @@ module {
                 return Buffer.toArray(buffer);
             };
 
-            public func refresh_cache(nodeMem : Ver2.NodeMem, vid : T.NodeId) : async* () {
+            public func refresh_cache(nodeMem : Ver3.NodeMem, vid : T.NodeId) : async* () {
                 if (Option.isNull(nodeMem.cache.neuron_id)) return;
 
                 // Compute the subaccounts to query
@@ -486,7 +491,7 @@ module {
             };
 
             private func update_neuron_cache(
-                nodeMem : Ver2.NodeMem,
+                nodeMem : Ver3.NodeMem,
                 neuronInfos : Map.Map<Nat64, I.NeuronInfo>,
                 fullNeurons : Map.Map<Blob, I.Neuron>,
             ) : () {
@@ -508,18 +513,19 @@ module {
                         nodeMem.cache.voting_power_refreshed_timestamp_seconds := full.voting_power_refreshed_timestamp_seconds;
                         nodeMem.cache.potential_voting_power := full.potential_voting_power;
                         nodeMem.cache.deciding_voting_power := full.deciding_voting_power;
+                        nodeMem.cache.maturity_disbursements_in_progress := full.maturity_disbursements_in_progress;
                     };
                     case (_) { return };
                 };
             };
 
             private func update_spawning_neurons_cache(
-                nodeMem : Ver2.NodeMem,
+                nodeMem : Ver3.NodeMem,
                 vid : Nat32,
                 neuronInfos : Map.Map<Nat64, I.NeuronInfo>,
                 fullNeurons : Map.Map<Blob, I.Neuron>,
             ) : () {
-                let spawningNeurons = Buffer.Buffer<Ver2.NeuronCache>(8); // max of 7 spawning + 1 ready
+                let spawningNeurons = Buffer.Buffer<Ver3.NeuronCache>(8); // max of 7 spawning + 1 ready
 
                 // Use the same logic as in compute_recent_subaccounts
                 let startIdx : Nat32 = if (nodeMem.internals.local_idx >= (MAX_SUBACCOUNTS_TO_QUERY : Nat32) - 1) {
@@ -553,6 +559,7 @@ module {
                             var voting_power_refreshed_timestamp_seconds = full.voting_power_refreshed_timestamp_seconds;
                             var potential_voting_power = full.potential_voting_power;
                             var deciding_voting_power = full.deciding_voting_power;
+                            var maturity_disbursements_in_progress = full.maturity_disbursements_in_progress;
                         });
                     };
                 };
@@ -560,7 +567,7 @@ module {
                 nodeMem.internals.spawning_neurons := Buffer.toArray(spawningNeurons);
             };
 
-            public func delay_changed(nodeMem : Ver2.NodeMem) : Bool {
+            public func delay_changed(nodeMem : Ver3.NodeMem) : Bool {
                 if (Option.isNull(nodeMem.cache.neuron_id)) return false;
                 switch (nodeMem.variables.dissolve_status) {
                     case (#Dissolving) {
@@ -578,7 +585,7 @@ module {
                 };
             };
 
-            public func followee_changed(nodeMem : Ver2.NodeMem, topic : Int32) : Bool {
+            public func followee_changed(nodeMem : Ver3.NodeMem, topic : Int32) : Bool {
                 if (Option.isNull(nodeMem.cache.neuron_id)) return false;
                 let currentFollowees = Map.fromIter<Int32, { followees : [{ id : Nat64 }] }>(nodeMem.cache.followees.vals(), Map.i32hash);
                 let followeeToSet : Nat64 = switch (nodeMem.variables.followee) {
@@ -594,7 +601,7 @@ module {
                 };
             };
 
-            public func dissolving_changed(nodeMem : Ver2.NodeMem) : Bool {
+            public func dissolving_changed(nodeMem : Ver3.NodeMem) : Bool {
                 if (Option.isNull(nodeMem.cache.neuron_id)) return false;
                 let ?dissolvingState = nodeMem.cache.state else return false;
 
@@ -610,7 +617,7 @@ module {
         };
 
         module NeuronActions {
-            public func refresh_neuron(nodeMem : Ver2.NodeMem, vid : T.NodeId) : async* () {
+            public func refresh_neuron(nodeMem : Ver3.NodeMem, vid : T.NodeId) : async* () {
                 let firstNonce = NodeUtils.get_neuron_nonce(vid, 0); // first localIdx for every neuron is always 0
                 let ?{ cls = #icp(ledger) } = core.get_ledger_cls(ICP_LEDGER_CANISTER_ID) else return;
                 let ?refreshIdx = nodeMem.internals.refresh_idx else return;
@@ -640,7 +647,7 @@ module {
                 };
             };
 
-            public func update_delay(nodeMem : Ver2.NodeMem) : async* () {
+            public func update_delay(nodeMem : Ver3.NodeMem) : async* () {
                 let ?neuron_id = nodeMem.cache.neuron_id else return;
 
                 if (CacheManager.delay_changed(nodeMem)) {
@@ -678,7 +685,7 @@ module {
                 };
             };
 
-            public func update_followees(nodeMem : Ver2.NodeMem) : async* () {
+            public func update_followees(nodeMem : Ver3.NodeMem) : async* () {
                 let ?neuron_id = nodeMem.cache.neuron_id else return;
 
                 for (topic in GOVERNANCE_TOPICS.vals()) {
@@ -709,7 +716,7 @@ module {
                 };
             };
 
-            public func update_dissolving(nodeMem : Ver2.NodeMem) : async* () {
+            public func update_dissolving(nodeMem : Ver3.NodeMem) : async* () {
                 let ?neuron_id = nodeMem.cache.neuron_id else return;
 
                 if (CacheManager.dissolving_changed(nodeMem)) {
@@ -743,31 +750,31 @@ module {
                 };
             };
 
-            public func spawn_maturity(nodeMem : Ver2.NodeMem, vid : T.NodeId) : async* () {
+            public func disburse_maturity(nodeMem : Ver3.NodeMem, vec : T.NodeCoreMem) : async* () {
                 let ?neuron_id = nodeMem.cache.neuron_id else return;
                 let ?cachedMaturity = nodeMem.cache.maturity_e8s_equivalent else return;
 
                 if (cachedMaturity > MINIMUM_SPAWN) {
-                    nodeMem.internals.local_idx += 1;
-                    let newNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, nodeMem.internals.local_idx);
+                    // send maturity to the maturity source
+                    let ?{ owner; subaccount } = core.getSourceAccountIC(vec, 1) else return;
 
                     let neuron = NNS.Neuron({
                         nns_canister_id = NNS_CANISTER_ID;
                         neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
                     });
 
-                    switch (await* neuron.spawn({ nonce = ?newNonce; new_controller = null; percentage_to_spawn = null })) {
+                    switch (await* neuron.disburseMaturity({ to_account_identifier = null; to_account = ?{ owner = ?owner; subaccount = subaccount }; percentage_to_disburse = 100 })) {
                         case (#ok(_)) {
-                            NodeUtils.log_activity(nodeMem, "spawn_maturity", #Ok);
+                            NodeUtils.log_activity(nodeMem, "disburse_maturity", #Ok);
                         };
                         case (#err(err)) {
-                            NodeUtils.log_activity(nodeMem, "spawn_maturity", #Err(debug_show err));
+                            NodeUtils.log_activity(nodeMem, "disburse_maturity", #Err(debug_show err));
                         };
                     };
                 };
             };
 
-            public func claim_maturity(nodeMem : Ver2.NodeMem, vec : T.NodeCoreMem) : async* () {
+            public func claim_maturity(nodeMem : Ver3.NodeMem, vec : T.NodeCoreMem) : async* () {
                 label spawnLoop for (spawningNeuron in nodeMem.internals.spawning_neurons.vals()) {
                     let ?cachedStake = spawningNeuron.cached_neuron_stake_e8s else continue spawnLoop;
 
@@ -797,7 +804,7 @@ module {
                 };
             };
 
-            public func disburse_neuron(nodeMem : Ver2.NodeMem, vec : T.NodeCoreMem) : async* () {
+            public func disburse_neuron(nodeMem : Ver3.NodeMem, vec : T.NodeCoreMem) : async* () {
                 let ?neuron_id = nodeMem.cache.neuron_id else return;
                 let ?dissolvingState = nodeMem.cache.state else return;
                 let ?cachedStake = nodeMem.cache.cached_neuron_stake_e8s else return;
@@ -826,7 +833,7 @@ module {
                 };
             };
 
-            public func refresh_voting_power(nodeMem : Ver2.NodeMem) : async* () {
+            public func refresh_voting_power(nodeMem : Ver3.NodeMem) : async* () {
                 let ?neuron_id = nodeMem.cache.neuron_id else return;
                 let ?votingPowerRefreshed = nodeMem.cache.voting_power_refreshed_timestamp_seconds else return;
 
