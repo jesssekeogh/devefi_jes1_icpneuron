@@ -19,7 +19,7 @@ describe("Multiple", () => {
     maturity = Maturity.beforeAll(manager);
     maturityFollowee = await maturity.createNeuron();
 
-    const nodesToCreate = 3;
+    const nodesToCreate = 2;
 
     let done = [];
     for (let i = 0; i < nodesToCreate; i++) {
@@ -114,8 +114,7 @@ describe("Multiple", () => {
   it("should spawn maturity in multiple neurons", async () => {
     await maturity.createMotionProposal(maturityFollowee);
 
-    await manager.advanceBlocksAndTimeDays(10);
-    await manager.advanceBlocksAndTimeHours(3);
+    await manager.advanceBlocksAndTimeDays(8);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
@@ -123,22 +122,22 @@ describe("Multiple", () => {
         node.custom[0].devefi_jes1_icpneuron.cache.maturity_e8s_equivalent[0]
       ).toBe(0n);
       expect(
-        node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+        node.custom[0].devefi_jes1_icpneuron.cache
+          .maturity_disbursements_in_progress[0].length
       ).toBeGreaterThan(0);
-      expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(1);
     }
   });
 
   it("should claim maturity from multiple neurons", async () => {
     let oldBalance = await manager.getMyBalances();
 
-    await manager.advanceBlocksAndTimeDays(10);
-    await manager.advanceBlocksAndTimeHours(3);
-    
+    await manager.advanceBlocksAndTimeDays(8);
+
     for (let node of nodes) {
       node = await manager.getNode(node.id);
       expect(
-        node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+        node.custom[0].devefi_jes1_icpneuron.cache
+          .maturity_disbursements_in_progress[0].length
       ).toBe(0);
     }
 

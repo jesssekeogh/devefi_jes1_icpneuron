@@ -236,6 +236,24 @@ export const idlFactory = ({ IDL }) => {
     'created_timestamp_seconds' : IDL.Opt(IDL.Nat64),
     'state' : IDL.Opt(IDL.Int32),
     'nonce' : IDL.Opt(IDL.Nat64),
+    'maturity_disbursements_in_progress' : IDL.Opt(
+      IDL.Vec(
+        IDL.Record({
+          'account_identifier_to_disburse_to' : IDL.Opt(
+            IDL.Record({ 'hash' : IDL.Vec(IDL.Nat8) })
+          ),
+          'timestamp_of_disbursement_seconds' : IDL.Opt(IDL.Nat64),
+          'amount_e8s' : IDL.Opt(IDL.Nat64),
+          'account_to_disburse_to' : IDL.Opt(
+            IDL.Record({
+              'owner' : IDL.Opt(IDL.Principal),
+              'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+            })
+          ),
+          'finalize_disbursement_timestamp_seconds' : IDL.Opt(IDL.Nat64),
+        })
+      )
+    ),
     'followees' : IDL.Vec(
       IDL.Tuple(
         IDL.Int32,

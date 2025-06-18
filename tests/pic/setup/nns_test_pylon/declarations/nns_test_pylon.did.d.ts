@@ -316,6 +316,24 @@ export interface SharedNeuronCache {
   'created_timestamp_seconds' : [] | [bigint],
   'state' : [] | [number],
   'nonce' : [] | [bigint],
+  'maturity_disbursements_in_progress' : [] | [
+    Array<
+      {
+        'account_identifier_to_disburse_to' : [] | [
+          { 'hash' : Uint8Array | number[] }
+        ],
+        'timestamp_of_disbursement_seconds' : [] | [bigint],
+        'amount_e8s' : [] | [bigint],
+        'account_to_disburse_to' : [] | [
+          {
+            'owner' : [] | [Principal],
+            'subaccount' : [] | [Uint8Array | number[]],
+          }
+        ],
+        'finalize_disbursement_timestamp_seconds' : [] | [bigint],
+      }
+    >
+  ],
   'followees' : Array<[number, { 'followees' : Array<{ 'id' : bigint }> }]>,
   'voting_power' : [] | [bigint],
   'neuron_id' : [] | [bigint],

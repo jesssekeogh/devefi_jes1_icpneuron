@@ -49,15 +49,28 @@ describe("Billing", () => {
 
     await maturity.createMotionProposal(maturityFollowee);
 
-    await manager.advanceBlocksAndTimeDays(16);
+    await manager.advanceBlocksAndTimeDays(8);
+
+    for (let node of nodes) {
+      node = await manager.getNode(node.id);
+      expect(
+        node.custom[0].devefi_jes1_icpneuron.cache.maturity_e8s_equivalent[0]
+      ).toBe(0n);
+      expect(
+        node.custom[0].devefi_jes1_icpneuron.cache
+          .maturity_disbursements_in_progress[0].length
+      ).toBeGreaterThan(0);
+    }
+
+    await manager.advanceBlocksAndTimeDays(8);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
       expect(node.sources[1].balance).toBe(0n); // expect maturity source to be empty
       expect(
-        node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+        node.custom[0].devefi_jes1_icpneuron.cache
+          .maturity_disbursements_in_progress[0].length
       ).toBe(0);
-      expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(1);
     }
 
     let newBalance = await manager.getMyBalances();

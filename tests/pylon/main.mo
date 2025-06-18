@@ -89,9 +89,10 @@ shared ({ caller = owner }) actor class NNSTESTPYLON() = this {
     // Components
     stable let mem_vec_icpneuron_1 = IcpNeuronVector.Mem.Vector.V1.new();
     stable let mem_vec_icpneuron_2 = IcpNeuronVector.Mem.Vector.V2.upgrade(mem_vec_icpneuron_1);
+    stable let mem_vec_icpneuron_3 = IcpNeuronVector.Mem.Vector.V3.upgrade(mem_vec_icpneuron_2);
 
     let devefi_jes1_icpneuron = IcpNeuronVector.Mod({
-        xmem = mem_vec_icpneuron_2;
+        xmem = mem_vec_icpneuron_3;
         core;
     });
 

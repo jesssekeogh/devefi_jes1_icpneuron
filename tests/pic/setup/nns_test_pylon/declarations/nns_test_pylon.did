@@ -108,6 +108,20 @@ type SharedNeuronCache =
           int32;
           record {followees: vec record {id: nat64;};};
         };
+   maturity_disbursements_in_progress:
+    opt
+     vec
+      record {
+        account_identifier_to_disburse_to: opt record {hash: blob;};
+        account_to_disburse_to:
+         opt record {
+               owner: opt principal;
+               subaccount: opt blob;
+             };
+        amount_e8s: opt nat64;
+        finalize_disbursement_timestamp_seconds: opt nat64;
+        timestamp_of_disbursement_seconds: opt nat64;
+      };
    maturity_e8s_equivalent: opt nat64;
    neuron_id: opt nat64;
    nonce: opt nat64;

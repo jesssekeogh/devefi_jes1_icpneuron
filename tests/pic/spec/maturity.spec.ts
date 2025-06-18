@@ -39,9 +39,20 @@ describe("Maturity", () => {
     await manager.advanceBlocksAndTimeHours(3);
 
     node = await manager.getNode(node.id);
+
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.cache
+        .maturity_disbursements_in_progress[0].length
+    ).toBe(0);
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.maturity_e8s_equivalent[0]
     ).toBeGreaterThan(0n);
+
+    // Make sure old spawning technique is no longer used
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+    ).toBe(0);
+    expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(0);
   });
 
   it("should spawn maturity", async () => {
@@ -49,9 +60,18 @@ describe("Maturity", () => {
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+      node.custom[0].devefi_jes1_icpneuron.cache.maturity_e8s_equivalent[0]
+    ).toBe(0n);
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.cache
+        .maturity_disbursements_in_progress[0].length
     ).toBeGreaterThan(0);
-    expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(1);
+
+    // Make sure old spawning technique is no longer used
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+    ).toBe(0);
+    expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(0);
   });
 
   it("should claim maturity", async () => {
@@ -60,11 +80,19 @@ describe("Maturity", () => {
     await manager.advanceBlocksAndTimeDays(8);
 
     node = await manager.getNode(node.id);
+
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+      node.custom[0].devefi_jes1_icpneuron.cache
+        .maturity_disbursements_in_progress[0].length
     ).toBe(0);
     let newBalance = await manager.getMyBalances();
     expect(newBalance.icp_tokens).toBeGreaterThan(oldBalance.icp_tokens);
+
+    // Make sure old spawning technique is no longer used
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+    ).toBe(0);
+    expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(0);
   });
 
   it("should spawn and claim maturity again", async () => {
@@ -75,9 +103,9 @@ describe("Maturity", () => {
     node = await manager.getNode(node.id);
 
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+      node.custom[0].devefi_jes1_icpneuron.cache
+        .maturity_disbursements_in_progress[0].length
     ).toBeGreaterThan(0);
-    expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(2);
 
     let oldBalance = await manager.getMyBalances();
 
@@ -85,10 +113,17 @@ describe("Maturity", () => {
 
     node = await manager.getNode(node.id);
     expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+      node.custom[0].devefi_jes1_icpneuron.cache
+        .maturity_disbursements_in_progress[0].length
     ).toBe(0);
 
     let newBalance = await manager.getMyBalances();
     expect(newBalance.icp_tokens).toBeGreaterThan(oldBalance.icp_tokens);
+
+    // Make sure old spawning technique is no longer used
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
+    ).toBe(0);
+    expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(0);
   });
 });
