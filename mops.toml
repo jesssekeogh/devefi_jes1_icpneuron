@@ -1,6 +1,6 @@
 [package]
 name = "devefi-jes1-icpneuron"
-version = "0.2.3"
+version = "0.3.0"
 description = "Stake ICP neurons and receive maturity directly to your destination"
 repository = "https://github.com/jesssekeogh/devefi_jes1_icpneuron"
 keywords = [ "devefi", "neuron", "stake", "icp" ]
