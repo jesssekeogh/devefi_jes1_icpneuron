@@ -5,10 +5,8 @@ import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import Option "mo:base/Option";
 import Array "mo:base/Array";
-import Blob "mo:base/Blob";
 import Error "mo:base/Error";
 import Buffer "mo:base/Buffer";
-import Iter "mo:base/Iter";
 import Nat32 "mo:base/Nat32";
 import Core "mo:devefi/core";
 import Ver1 "./memory/v1";
@@ -45,9 +43,6 @@ module {
         let NNS_CANISTER_ID = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
 
         let ICP_LEDGER_CANISTER_ID = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
-
-        // Number of recent subaccounts to query (leaves plenty of room to catch up)
-        let MAX_SUBACCOUNTS_TO_QUERY : Nat32 = 30;
 
         // Interval for cache check when no neuron refresh is pending.
         // Maturity accumulates only once per day, allowing at most one neuron spawn daily.
@@ -107,7 +102,7 @@ module {
                 author = "jes1";
                 description = "Stake ICP neurons and receive maturity directly to your destination";
                 supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID)];
-                version = #beta([0, 3, 0]);
+                version = #beta([0, 3, 1]);
                 create_allowed = true;
                 ledger_slots = [
                     "Neuron"
@@ -214,7 +209,6 @@ module {
                     await* NeuronActions.update_followees(nodeMem);
                     await* NeuronActions.update_dissolving(nodeMem);
                     await* NeuronActions.disburse_maturity(nodeMem, vec);
-                    await* NeuronActions.claim_maturity(nodeMem, vec);
                     await* NeuronActions.disburse_neuron(nodeMem, vec);
                     await* NeuronActions.refresh_voting_power(nodeMem);
                     await* CacheManager.refresh_cache(nodeMem, vid);
@@ -432,139 +426,39 @@ module {
         };
 
         module CacheManager {
-            private func compute_recent_subaccounts(vid : T.NodeId, localIdx : Nat32) : [{
-                subaccount : Blob;
-            }] {
-                let buffer = Buffer.Buffer<{ subaccount : Blob }>(Nat32.toNat(MAX_SUBACCOUNTS_TO_QUERY));
-
-                // Always include the main neuron's subaccount (index 0)
-                let mainNonce = NodeUtils.get_neuron_nonce(vid, 0);
-                let mainSubaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), mainNonce);
-                buffer.add({ subaccount = mainSubaccount });
-
-                // Compute how many recent indices to check based on localIdx
-                let startIdx : Nat32 = if (localIdx >= (MAX_SUBACCOUNTS_TO_QUERY) - 1) {
-                    localIdx - ((MAX_SUBACCOUNTS_TO_QUERY) - 1);
-                } else {
-                    1;
-                };
-
-                // Add the most recent subaccounts (up to MAX_SUBACCOUNTS_TO_QUERY)
-                label idxLoop for (idx in Iter.range(Nat32.toNat(startIdx), Nat32.toNat(localIdx))) {
-                    let nonce = NodeUtils.get_neuron_nonce(vid, Nat32.fromNat(idx));
-                    let subaccount = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce);
-                    buffer.add({ subaccount = subaccount });
-                };
-
-                return Buffer.toArray(buffer);
-            };
-
             public func refresh_cache(nodeMem : Ver3.NodeMem, vid : T.NodeId) : async* () {
-                if (Option.isNull(nodeMem.cache.neuron_id)) return;
+                let ?neuron_id = nodeMem.cache.neuron_id else return;
 
-                // Compute the subaccounts to query
-                let subaccounts = compute_recent_subaccounts(vid, nodeMem.internals.local_idx);
-
-                // Retrieve neurons owned by this canister using computed subaccounts
                 let { full_neurons; neuron_infos } = await* nns.listNeurons({
                     include_empty = false;
                     include_public = false;
                     include_readable = false;
-                    neuron_ids = [];
-                    neuron_subaccounts = ?subaccounts;
+                    neuron_ids = [neuron_id];
+                    neuron_subaccounts = null;
                     page_number = null;
                     page_size = null;
                 });
 
-                // Convert results to maps for efficient lookups
-                let neuronInfos = Map.fromIter<Nat64, I.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
-                let fullNeurons = Map.fromIterMap<Blob, I.Neuron, I.Neuron>(
-                    full_neurons.vals(),
-                    Map.bhash,
-                    func(neuron : I.Neuron) : ?(Blob, I.Neuron) {
-                        return ?(neuron.account, neuron);
-                    },
-                );
+                if (full_neurons.size() > 0 and neuron_infos.size() > 0) {
+                    let full = full_neurons[0];
+                    let info = neuron_infos[0].1;
 
-                update_neuron_cache(nodeMem, neuronInfos, fullNeurons);
-                update_spawning_neurons_cache(nodeMem, vid, neuronInfos, fullNeurons);
-            };
-
-            private func update_neuron_cache(
-                nodeMem : Ver3.NodeMem,
-                neuronInfos : Map.Map<Nat64, I.NeuronInfo>,
-                fullNeurons : Map.Map<Blob, I.Neuron>,
-            ) : () {
-                let ?nid = nodeMem.cache.neuron_id else return;
-                let ?nonce = nodeMem.cache.nonce else return;
-
-                let neuronSub : Blob = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce);
-
-                switch (Map.get(neuronInfos, Map.n64hash, nid), Map.get(fullNeurons, Map.bhash, neuronSub)) {
-                    case (?info, ?full) {
-                        nodeMem.cache.maturity_e8s_equivalent := ?full.maturity_e8s_equivalent;
-                        nodeMem.cache.cached_neuron_stake_e8s := ?full.cached_neuron_stake_e8s;
-                        nodeMem.cache.created_timestamp_seconds := ?full.created_timestamp_seconds;
-                        nodeMem.cache.followees := full.followees;
-                        nodeMem.cache.dissolve_delay_seconds := ?info.dissolve_delay_seconds;
-                        nodeMem.cache.state := ?info.state;
-                        nodeMem.cache.voting_power := ?info.voting_power;
-                        nodeMem.cache.age_seconds := ?info.age_seconds;
-                        nodeMem.cache.voting_power_refreshed_timestamp_seconds := full.voting_power_refreshed_timestamp_seconds;
-                        nodeMem.cache.potential_voting_power := full.potential_voting_power;
-                        nodeMem.cache.deciding_voting_power := full.deciding_voting_power;
-                        nodeMem.cache.maturity_disbursements_in_progress := full.maturity_disbursements_in_progress;
-                    };
-                    case (_) { return };
-                };
-            };
-
-            private func update_spawning_neurons_cache(
-                nodeMem : Ver3.NodeMem,
-                vid : Nat32,
-                neuronInfos : Map.Map<Nat64, I.NeuronInfo>,
-                fullNeurons : Map.Map<Blob, I.Neuron>,
-            ) : () {
-                let spawningNeurons = Buffer.Buffer<Ver3.NeuronCache>(8); // max of 7 spawning + 1 ready
-
-                // Use the same logic as in compute_recent_subaccounts
-                let startIdx : Nat32 = if (nodeMem.internals.local_idx >= (MAX_SUBACCOUNTS_TO_QUERY : Nat32) - 1) {
-                    nodeMem.internals.local_idx - ((MAX_SUBACCOUNTS_TO_QUERY : Nat32) - 1);
+                    nodeMem.cache.maturity_e8s_equivalent := ?full.maturity_e8s_equivalent;
+                    nodeMem.cache.cached_neuron_stake_e8s := ?full.cached_neuron_stake_e8s;
+                    nodeMem.cache.created_timestamp_seconds := ?full.created_timestamp_seconds;
+                    nodeMem.cache.followees := full.followees;
+                    nodeMem.cache.dissolve_delay_seconds := ?info.dissolve_delay_seconds;
+                    nodeMem.cache.state := ?info.state;
+                    nodeMem.cache.voting_power := ?info.voting_power;
+                    nodeMem.cache.age_seconds := ?info.age_seconds;
+                    nodeMem.cache.voting_power_refreshed_timestamp_seconds := full.voting_power_refreshed_timestamp_seconds;
+                    nodeMem.cache.potential_voting_power := full.potential_voting_power;
+                    nodeMem.cache.deciding_voting_power := full.deciding_voting_power;
+                    nodeMem.cache.maturity_disbursements_in_progress := full.maturity_disbursements_in_progress;
                 } else {
-                    1;
+                    // should never happen, but just in case
+                    NodeUtils.log_activity(nodeMem, "refresh_cache", #Err("Neuron not found for ID: " # debug_show neuron_id));
                 };
-
-                // Only iterate through the recently queried spawning neurons
-                label idxLoop for (idx in Iter.range(Nat32.toNat(startIdx), Nat32.toNat(nodeMem.internals.local_idx))) {
-                    let spawningNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, Nat32.fromNat(idx));
-                    let spawningSub : Blob = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), spawningNonce);
-
-                    let ?full = Map.get(fullNeurons, Map.bhash, spawningSub) else continue idxLoop;
-                    let ?nid = full.id else continue idxLoop;
-                    let ?info = Map.get(neuronInfos, Map.n64hash, nid.id) else continue idxLoop;
-
-                    // only add the neuron if the maturity or stake is greater than 0
-                    if (full.maturity_e8s_equivalent > 0 or full.cached_neuron_stake_e8s > 0) {
-                        spawningNeurons.add({
-                            var neuron_id = ?nid.id;
-                            var nonce = ?spawningNonce;
-                            var maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
-                            var cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
-                            var created_timestamp_seconds = ?full.created_timestamp_seconds;
-                            var followees = full.followees;
-                            var dissolve_delay_seconds = ?info.dissolve_delay_seconds;
-                            var state = ?info.state;
-                            var voting_power = ?info.voting_power;
-                            var age_seconds = ?info.age_seconds;
-                            var voting_power_refreshed_timestamp_seconds = full.voting_power_refreshed_timestamp_seconds;
-                            var potential_voting_power = full.potential_voting_power;
-                            var deciding_voting_power = full.deciding_voting_power;
-                            var maturity_disbursements_in_progress = full.maturity_disbursements_in_progress;
-                        });
-                    };
-                };
-
-                nodeMem.internals.spawning_neurons := Buffer.toArray(spawningNeurons);
             };
 
             public func delay_changed(nodeMem : Ver3.NodeMem) : Bool {
@@ -769,36 +663,6 @@ module {
                         };
                         case (#err(err)) {
                             NodeUtils.log_activity(nodeMem, "disburse_maturity", #Err(debug_show err));
-                        };
-                    };
-                };
-            };
-
-            public func claim_maturity(nodeMem : Ver3.NodeMem, vec : T.NodeCoreMem) : async* () {
-                label spawnLoop for (spawningNeuron in nodeMem.internals.spawning_neurons.vals()) {
-                    let ?cachedStake = spawningNeuron.cached_neuron_stake_e8s else continue spawnLoop;
-
-                    // Once a neuron is spawned, the maturity is converted into staked ICP
-                    if (cachedStake > 0) {
-                        let ?nonce = spawningNeuron.nonce else continue spawnLoop;
-
-                        let neuron = NNS.Neuron({
-                            nns_canister_id = NNS_CANISTER_ID;
-                            neuron_id_or_subaccount = #Subaccount(
-                                Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), nonce)
-                            );
-                        });
-
-                        // send maturity to the maturity source
-                        let ?account = core.getSourceAccountIC(vec, 1) else return;
-
-                        switch (await* neuron.disburse({ to_account = ?{ hash = Principal.toLedgerAccount(account.owner, account.subaccount) }; amount = null })) {
-                            case (#ok(_)) {
-                                NodeUtils.log_activity(nodeMem, "claim_maturity", #Ok);
-                            };
-                            case (#err(err)) {
-                                NodeUtils.log_activity(nodeMem, "claim_maturity", #Err(debug_show err));
-                            };
                         };
                     };
                 };
