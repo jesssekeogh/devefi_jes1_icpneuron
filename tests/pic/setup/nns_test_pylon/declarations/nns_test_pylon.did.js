@@ -7,23 +7,13 @@ export const idlFactory = ({ IDL }) => {
     'errors' : IDL.Nat,
     'lastTxTime' : IDL.Nat64,
     'accounts' : IDL.Nat,
-    'actor_principal' : IDL.Opt(IDL.Principal),
-    'reader_instructions_cost' : IDL.Nat64,
-    'sender_instructions_cost' : IDL.Nat64,
-  });
-  const Info__1 = IDL.Record({
-    'pending' : IDL.Nat,
-    'last_indexed_tx' : IDL.Nat,
-    'errors' : IDL.Nat,
-    'lastTxTime' : IDL.Nat64,
-    'accounts' : IDL.Nat,
     'actor_principal' : IDL.Principal,
     'reader_instructions_cost' : IDL.Nat64,
     'sender_instructions_cost' : IDL.Nat64,
   });
   const LedgerInfo__1 = IDL.Record({
     'id' : IDL.Principal,
-    'info' : IDL.Variant({ 'icp' : Info, 'icrc' : Info__1 }),
+    'info' : IDL.Variant({ 'icp' : Info, 'icrc' : Info }),
   });
   const GetArchivesArgs = IDL.Record({ 'from' : IDL.Opt(IDL.Principal) });
   const GetArchivesResultItem = IDL.Record({
@@ -186,6 +176,7 @@ export const idlFactory = ({ IDL }) => {
       'temp' : IDL.Record({ 'id' : IDL.Nat32, 'source_idx' : EndpointIdx }),
       'external_account' : IDL.Variant({
         'ic' : Account,
+        'icp' : IDL.Vec(IDL.Nat8),
         'other' : IDL.Vec(IDL.Nat8),
       }),
       'account' : Account,
@@ -197,6 +188,7 @@ export const idlFactory = ({ IDL }) => {
       }),
       'account' : Account,
     }),
+    'memo' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'ledger' : SupportedLedger,
     'amount' : IDL.Nat,
   });

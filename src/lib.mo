@@ -102,7 +102,7 @@ module {
                 author = "jes1";
                 description = "Stake ICP neurons and receive maturity directly to your destination";
                 supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID)];
-                version = #beta([0, 3, 1]);
+                version = #beta([0, 3, 2]);
                 create_allowed = true;
                 ledger_slots = [
                     "Neuron"
@@ -164,11 +164,9 @@ module {
                     // Proceed to send ICP to the neuron's subaccount
                     let #ok(intent) = core.Source.Send.intent(
                         sourceStake,
-                        #external_account({
-                            owner = NNS_CANISTER_ID;
-                            subaccount = ?neuronSubaccount;
-                        }),
+                        #external_account(#icrc({ owner = NNS_CANISTER_ID; subaccount = ?neuronSubaccount })),
                         stakeBal,
+                        null,
                     ) else return;
 
                     let txId = core.Source.Send.commit(intent);
@@ -185,10 +183,7 @@ module {
                 let maturityDestination = switch (vec.billing.billing_option) {
                     case (1) {
                         let ?account = core.getDestinationAccountIC(vec, 0) else return;
-                        #external_account({
-                            owner = account.owner;
-                            subaccount = account.subaccount;
-                        });
+                        #external_account(#icrc({ owner = account.owner; subaccount = account.subaccount }));
                     };
                     case (_) { #destination({ port = 0 }) };
                 };
@@ -197,6 +192,7 @@ module {
                     sourceMaturity,
                     maturityDestination,
                     maturityBal,
+                    null,
                 ) else return;
 
                 ignore core.Source.Send.commit(intent);

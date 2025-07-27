@@ -50,6 +50,7 @@ describe("Billing", () => {
     await maturity.createMotionProposal(maturityFollowee);
 
     await manager.advanceBlocksAndTimeDays(8);
+    await manager.advanceBlocksAndTimeMinutes(3);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
@@ -63,6 +64,7 @@ describe("Billing", () => {
     }
 
     await manager.advanceBlocksAndTimeDays(8);
+    await manager.advanceBlocksAndTimeMinutes(3);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
@@ -78,6 +80,9 @@ describe("Billing", () => {
   });
 
   it("should add both fees to author account", async () => {
+    await manager.advanceBlocksAndTimeDays(1);
+    await manager.advanceBlocksAndTimeMinutes(3);
+
     let { icp_tokens, icrc_tokens } = await manager.getBillingBalances();
 
     expect(icp_tokens).toBeGreaterThan(0n);

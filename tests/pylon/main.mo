@@ -34,12 +34,13 @@ shared ({ caller = owner }) actor class NNSTESTPYLON() = this {
     stable let chrono_mem_v1 = Chrono.Mem.ChronoClient.V1.new({
         router = Principal.fromText("7uieb-cx777-77776-qaaaq-cai"); // test chronotrinite router
     });
-    
+
     let chrono = Chrono.ChronoClient<system>({ xmem = chrono_mem_v1 });
 
     stable let dvf_mem_1 = Ledgers.Mem.Ledgers.V1.new();
+    stable let dvf_mem_2 = Ledgers.Mem.Ledgers.V2.upgrade(dvf_mem_1);
 
-    let dvf = Ledgers.Ledgers<system>({ xmem = dvf_mem_1; me_can; chrono });
+    let dvf = Ledgers.Ledgers<system>({ xmem = dvf_mem_2; me_can; chrono });
 
     stable let mem_core_1 = Core.Mem.Core.V1.new();
 

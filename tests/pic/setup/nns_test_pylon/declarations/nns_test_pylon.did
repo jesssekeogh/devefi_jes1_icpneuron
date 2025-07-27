@@ -41,11 +41,13 @@ type TransferRequest =
             };
     };
    ledger: SupportedLedger;
+   memo: opt blob;
    to:
     variant {
       account: Account;
       external_account: variant {
                           ic: Account;
+                          icp: blob;
                           other: blob;
                         };
       node: record {
@@ -225,7 +227,7 @@ type LedgerInfo__1 =
    id: principal;
    info: variant {
            icp: Info;
-           icrc: Info__1;
+           icrc: Info;
          };
  };
 type LedgerInfo = 
@@ -246,21 +248,10 @@ type InputAddress =
            source_idx: EndpointIdx;
          };
  };
-type Info__1 = 
- record {
-   accounts: nat;
-   actor_principal: principal;
-   errors: nat;
-   lastTxTime: nat64;
-   last_indexed_tx: nat;
-   pending: nat;
-   reader_instructions_cost: nat64;
-   sender_instructions_cost: nat64;
- };
 type Info = 
  record {
    accounts: nat;
-   actor_principal: opt principal;
+   actor_principal: principal;
    errors: nat;
    lastTxTime: nat64;
    last_indexed_tx: nat;

@@ -31,7 +31,7 @@ import {
 } from "./constants.ts";
 import { NnsTestPylon, ICRCLedger } from "./index";
 import { minterIdentity } from "./nns/identity.ts";
-import { NNS_STATE_PATH, NNS_SUBNET_ID } from "./constants.ts";
+import { NNS_STATE_PATH } from "./constants.ts";
 import Router from "./router/router.ts";
 
 interface NeuronParams {
@@ -211,12 +211,19 @@ export class Manager {
   }
 
   // used for when a refresh is pending on a node
-  public async advanceBlocksAndTimeMinutes(rounds: number): Promise<void> {
-    let mins = 10; // 10 mins
-    let blocks = 10;
+  public async advanceBlocksAndTimeMinutes(mins: number): Promise<void> {
+    const totalSeconds = mins * 60;
+    const intervalSeconds = 20;
+    const blocksPerInterval = 20; // 1 block per second for 20 seconds
+    const rounds = Math.ceil(totalSeconds / intervalSeconds);
+
     for (let i = 0; i < rounds; i++) {
-      await this.pic.advanceTime(mins * 60 * 1000);
-      await this.pic.tick(blocks);
+      const timeToAdvance = Math.min(
+        intervalSeconds,
+        totalSeconds - i * intervalSeconds
+      );
+      await this.pic.advanceTime(timeToAdvance * 1000);
+      await this.pic.tick(blocksPerInterval);
     }
   }
 
@@ -229,7 +236,7 @@ export class Manager {
     for (let i = 0; i < rounds; i++) {
       await this.pic.advanceTime(sixHoursMins * 60 * 1000); // Convert minutes to milliseconds
       await this.pic.tick(blocksForSixHours);
-
+      
       // Advance 10 minutes (to process things)
       await this.pic.advanceTime(shortIntervalMins * 60 * 1000); // Convert minutes to milliseconds
       await this.pic.tick(blocksForShortInterval);
@@ -396,15 +403,16 @@ export class Manager {
 
   public async stakeNeuron(stakeParams: StakeNodeParams): Promise<NodeShared> {
     let node = await this.createNode(stakeParams);
-    await this.advanceBlocksAndTimeMinutes(3);
 
     await this.sendIcp(
       this.getNodeSourceAccount(node, 0),
       stakeParams.stake_amount
     );
-    await this.advanceBlocksAndTimeMinutes(8);
+
+    await this.advanceBlocksAndTimeMinutes(5);
 
     let refreshedNode = await this.getNode(node.id);
+
     return refreshedNode;
   }
 

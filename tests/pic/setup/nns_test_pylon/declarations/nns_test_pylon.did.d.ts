@@ -197,16 +197,6 @@ export interface Info {
   'errors' : bigint,
   'lastTxTime' : bigint,
   'accounts' : bigint,
-  'actor_principal' : [] | [Principal],
-  'reader_instructions_cost' : bigint,
-  'sender_instructions_cost' : bigint,
-}
-export interface Info__1 {
-  'pending' : bigint,
-  'last_indexed_tx' : bigint,
-  'errors' : bigint,
-  'lastTxTime' : bigint,
-  'accounts' : bigint,
   'actor_principal' : Principal,
   'reader_instructions_cost' : bigint,
   'sender_instructions_cost' : bigint,
@@ -225,7 +215,7 @@ export interface LedgerInfo {
 export interface LedgerInfo__1 {
   'id' : Principal,
   'info' : { 'icp' : Info } |
-    { 'icrc' : Info__1 },
+    { 'icrc' : Info },
 }
 export type LedgerLabel = string;
 export type LocalNodeId = number;
@@ -368,6 +358,7 @@ export interface TransferRequest {
     { 'temp' : { 'id' : number, 'source_idx' : EndpointIdx } } |
     {
       'external_account' : { 'ic' : Account } |
+        { 'icp' : Uint8Array | number[] } |
         { 'other' : Uint8Array | number[] }
     } |
     { 'account' : Account },
@@ -375,6 +366,7 @@ export interface TransferRequest {
       'node' : { 'node_id' : LocalNodeId, 'endpoint_idx' : EndpointIdx }
     } |
     { 'account' : Account },
+  'memo' : [] | [Uint8Array | number[]],
   'ledger' : SupportedLedger,
   'amount' : bigint,
 }

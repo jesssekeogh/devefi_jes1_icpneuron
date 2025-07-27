@@ -78,6 +78,7 @@ describe("Maturity", () => {
     let oldBalance = await manager.getMyBalances();
 
     await manager.advanceBlocksAndTimeDays(8);
+    await manager.advanceBlocksAndTimeMinutes(3);
 
     node = await manager.getNode(node.id);
 
@@ -99,6 +100,7 @@ describe("Maturity", () => {
     await maturity.createMotionProposal(maturityFollowee);
 
     await manager.advanceBlocksAndTimeDays(8);
+    await manager.advanceBlocksAndTimeMinutes(3);
 
     node = await manager.getNode(node.id);
 
@@ -110,7 +112,8 @@ describe("Maturity", () => {
     let oldBalance = await manager.getMyBalances();
 
     await manager.advanceBlocksAndTimeDays(8);
-
+    await manager.advanceBlocksAndTimeMinutes(3);
+    
     node = await manager.getNode(node.id);
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache

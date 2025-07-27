@@ -96,7 +96,7 @@ describe("Multiple", () => {
       }
     }
 
-    await manager.advanceBlocksAndTimeHours(5);
+    await manager.advanceBlocksAndTimeMinutes(5);
 
     for (let node of nodes) {
       node = await manager.getNode(node.id);
@@ -132,7 +132,8 @@ describe("Multiple", () => {
     let oldBalance = await manager.getMyBalances();
 
     await manager.advanceBlocksAndTimeDays(8);
-
+    await manager.advanceBlocksAndTimeMinutes(3);
+    
     for (let node of nodes) {
       node = await manager.getNode(node.id);
       expect(
