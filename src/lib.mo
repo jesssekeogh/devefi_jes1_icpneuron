@@ -10,15 +10,12 @@ import Ver2 "./memory/v2";
 import Ver3 "./memory/v3";
 import Ver4 "./memory/v4";
 import I "./interface";
+import U "mo:devefi/utils";
 import { NNS } "mo:neuro";
 import Tools "mo:neuro/tools";
 import NodeUtils "./modules/node";
 import { NeuronActions } "./modules/neuron";
-import {
-    ICP_LEDGER_CANISTER_ID;
-    NNS_CANISTER_ID;
-    MINIMUM_STAKE;
-} "./constants";
+import Constants "./constants";
 
 module {
     let T = Core.VectorModule;
@@ -49,8 +46,8 @@ module {
 
         let nns = NNS.Governance({
             canister_id = core.getThisCan();
-            nns_canister_id = NNS_CANISTER_ID();
-            icp_ledger_canister_id = ICP_LEDGER_CANISTER_ID();
+            nns_canister_id = Principal.fromText(Constants.NNS_CANISTER_ID);
+            icp_ledger_canister_id = Principal.fromText(Constants.ICP_LEDGER_CANISTER_ID);
         });
 
         public func meta() : T.Meta {
@@ -59,7 +56,7 @@ module {
                 name = "ICP Neuron";
                 author = "jes1";
                 description = "Stake ICP neurons and receive maturity directly to your destination";
-                supported_ledgers = [#ic(ICP_LEDGER_CANISTER_ID())];
+                supported_ledgers = [#ic(Principal.fromText(Constants.ICP_LEDGER_CANISTER_ID))];
                 version = #beta([0, 4, 0]);
                 create_allowed = true;
                 ledger_slots = [
@@ -109,12 +106,17 @@ module {
         };
 
         public func vote({
+            caller : Core.Account;
             vid : T.NodeId;
             neuronId : Nat64;
             proposal : Nat64;
             vote : Int32;
         }) : async* T.Modify {
+            let ?vec = core.getNodeById(vid) else return #err("Vector not found for ID: " # debug_show vid);
             let ?nodeMem = Map.get(mem.main, Map.n32hash, vid) else return #err("Node not found for ID: " # debug_show vid);
+            if (Option.isNull(Array.indexOf(caller, vec.controllers, U.Account.equal))) return #err("Not a controller");
+            if (not vec.active) return #err("Vector is not active");
+            if (vec.billing.frozen) return #err("Vector is frozen");
 
             // Validate that the neuronId exists in the node's neuron_cache
             let neuronExists = Array.find<Ver4.SharedNeuronCache>(
@@ -130,7 +132,7 @@ module {
             let ?_ = neuronExists else return #err("Neuron ID " # debug_show neuronId # " not found in node's neuron cache");
 
             let neuron = NNS.Neuron({
-                nns_canister_id = NNS_CANISTER_ID();
+                nns_canister_id = Principal.fromText(Constants.NNS_CANISTER_ID);
                 neuron_id_or_subaccount = #NeuronId({ id = neuronId });
             });
 
@@ -146,6 +148,62 @@ module {
             };
         };
 
+        public func split({
+            caller : Core.Account;
+            vid : T.NodeId;
+            neuronId : Nat64;
+            amount_e8s : Nat64;
+        }) : async* T.Modify {
+            let ?vec = core.getNodeById(vid) else return #err("Vector not found for ID: " # debug_show vid);
+            let ?nodeMem = Map.get(mem.main, Map.n32hash, vid) else return #err("Node not found for ID: " # debug_show vid);
+            if (Option.isNull(Array.indexOf(caller, vec.controllers, U.Account.equal))) return #err("Not a controller");
+            if (not vec.active) return #err("Vector is not active");
+            if (vec.billing.frozen) return #err("Vector is frozen");
+            if (amount_e8s < Constants.MINIMUM_SPLIT) return #err("Amount to split must be at least " # debug_show Constants.MINIMUM_SPLIT # " e8s");
+
+            // Validate that the neuronId exists in the node's neuron_cache
+            let neuronExists = Array.find<Ver4.SharedNeuronCache>(
+                nodeMem.neuron_cache,
+                func(cachedNeuron : Ver4.SharedNeuronCache) : Bool {
+                    switch (cachedNeuron.neuron_id) {
+                        case (?id) { id == neuronId };
+                        case (null) { false };
+                    };
+                },
+            );
+
+            let ?_ = neuronExists else return #err("Neuron ID " # debug_show neuronId # " not found in node's neuron cache");
+
+            let neuron = NNS.Neuron({
+                nns_canister_id = Principal.fromText(Constants.NNS_CANISTER_ID);
+                neuron_id_or_subaccount = #NeuronId({ id = neuronId });
+            });
+
+            let actions = NeuronActions({
+                nns = nns;
+                nodeMem = nodeMem;
+                vid = vid;
+                vec = vec;
+                core = core;
+            });
+
+            nodeMem.internals.local_idx += 1;
+            let newNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, nodeMem.internals.local_idx);
+
+            // TODO pass in new nonce
+            switch (await* neuron.split({ amount_e8s = amount_e8s })) {
+                case (#ok(_)) {
+                    NodeUtils.log_activity(nodeMem, "split_neuron", #Ok(()));
+                    await* actions.refresh_cache();
+                    return #ok();
+                };
+                case (#err(err)) {
+                    NodeUtils.log_activity(nodeMem, "split_neuron", #Err(debug_show err));
+                    return #err("Failed to split: " # debug_show err);
+                };
+            };
+        };
+
         module Run {
             public func single(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : () {
                 let ?sourceStake = core.getSource(vid, vec, 0) else return;
@@ -154,13 +212,13 @@ module {
 
                 // If a neuron exists, a smaller amount is required for increasing the existing stake.
                 // If no neuron exists, enforce the minimum stake requirement (plus fee) to create a new neuron.
-                let requiredStake = if (Option.isSome(nodeMem.cache.neuron_id)) core.Source.fee(sourceStake) else MINIMUM_STAKE();
+                let requiredStake = if (Option.isSome(nodeMem.cache.neuron_id)) core.Source.fee(sourceStake) else Constants.MINIMUM_STAKE;
 
                 if (stakeBal > requiredStake) {
                     // Proceed to send ICP to the neuron's subaccount
                     let #ok(intent) = core.Source.Send.intent(
                         sourceStake,
-                        #external_account(#icrc({ owner = NNS_CANISTER_ID(); subaccount = ?neuronSubaccount })),
+                        #external_account(#icrc({ owner = Principal.fromText(Constants.NNS_CANISTER_ID); subaccount = ?neuronSubaccount })),
                         stakeBal,
                         null,
                     ) else return;

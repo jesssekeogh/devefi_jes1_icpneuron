@@ -16,6 +16,9 @@ module Constants {
     // 20.00 ICP in e8s
     public let MINIMUM_STAKE : Nat = 2_000_000_000;
 
+    // 20.00 ICP in e8s
+    public let MINIMUM_SPLIT : Nat64 = 2_000_000_000;
+
     // 1.06 ICP in e8s
     public let MINIMUM_SPAWN : Nat64 = 106_000_000;
 

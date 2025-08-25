@@ -144,30 +144,6 @@ module {
             };
         };
 
-        // public func split_neuron() : async* () {
-        //     let ?neuron_id = CacheManager.should_split_neuron(nodeMem) else return;
-
-        //     let neuron = NNS.Neuron({
-        //         nns_canister_id = NNS_CANISTER_ID();
-        //         neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
-        //     });
-
-        //     nodeMem.internals.local_idx += 1;
-        //     let newNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, nodeMem.internals.local_idx);
-
-        //     let ?splitAmount = Split.split_needed(nodeMem) else return;
-
-        //     // TODO pass in newNonce for tracking
-        //     switch (await* neuron.split({ amount_e8s = splitAmount })) {
-        //         case (#ok(_)) {
-        //             NodeUtils.log_activity(nodeMem, "split_neuron", #Ok);
-        //         };
-        //         case (#err(err)) {
-        //             NodeUtils.log_activity(nodeMem, "split_neuron", #Err(debug_show err));
-        //         };
-        //     };
-        // };
-
         public func update_delay() : async* () {
             let ?neuron_id = CacheManager.delay_changed(nodeMem) else return;
 

@@ -91,9 +91,10 @@ shared ({ caller = owner }) actor class NNSTESTPYLON() = this {
     stable let mem_vec_icpneuron_1 = IcpNeuronVector.Mem.Vector.V1.new();
     stable let mem_vec_icpneuron_2 = IcpNeuronVector.Mem.Vector.V2.upgrade(mem_vec_icpneuron_1);
     stable let mem_vec_icpneuron_3 = IcpNeuronVector.Mem.Vector.V3.upgrade(mem_vec_icpneuron_2);
+    stable let mem_vec_icpneuron_4 = IcpNeuronVector.Mem.Vector.V4.upgrade(mem_vec_icpneuron_3);
 
     let devefi_jes1_icpneuron = IcpNeuronVector.Mod({
-        xmem = mem_vec_icpneuron_3;
+        xmem = mem_vec_icpneuron_4;
         core;
     });
 
@@ -181,6 +182,36 @@ shared ({ caller = owner }) actor class NNSTESTPYLON() = this {
     };
 
     // ---------- Debug functions -----------
+
+    public shared ({ caller }) func icpneuron_vote({
+        caller_subaccount : ?Blob;
+        vid : Nat32;
+        neuronId : Nat64;
+        proposal : Nat64;
+        vote : Int32;
+    }) : async { #ok; #err : Text } {
+        return await* devefi_jes1_icpneuron.vote({
+            caller = { owner = caller; subaccount = caller_subaccount };
+            vid = vid;
+            neuronId = neuronId;
+            proposal = proposal;
+            vote = vote;
+        });
+    };
+
+    public shared ({ caller }) func icpneuron_split({
+        caller_subaccount : ?Blob;
+        vid : Nat32;
+        neuronId : Nat64;
+        amount_e8s : Nat64;
+    }) : async { #ok; #err : Text } {
+        return await* devefi_jes1_icpneuron.split({
+            caller = { owner = caller; subaccount = caller_subaccount };
+            vid = vid;
+            neuronId = neuronId;
+            amount_e8s = amount_e8s;
+        });
+    };
 
     public query func get_ledger_errors() : async [[Text]] {
         dvf.getErrors();
