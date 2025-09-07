@@ -30,6 +30,8 @@ describe("Multiple", () => {
           dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
           followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
           dissolve_status: { Locked: null },
+          hotkey: { None: null },
+          visibility: { Private: null },
         },
       });
       done.push(node);
@@ -57,9 +59,9 @@ describe("Multiple", () => {
     for (let node of nodes) {
       await manager.modifyNode(
         node.id,
-        [],
-        [{ FolloweeId: maturityFollowee }],
-        []
+        {
+          updateFollowee: { FolloweeId: maturityFollowee },
+        }
       );
       await manager.advanceBlocksAndTimeMinutes(3);
     }
@@ -133,7 +135,7 @@ describe("Multiple", () => {
 
     await manager.advanceBlocksAndTimeDays(8);
     await manager.advanceBlocksAndTimeMinutes(3);
-    
+
     for (let node of nodes) {
       node = await manager.getNode(node.id);
       expect(

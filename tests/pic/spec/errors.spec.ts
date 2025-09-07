@@ -22,6 +22,8 @@ describe("Errors", () => {
         dissolve_delay: { Default: null },
         followee: { Default: null },
         dissolve_status: { Locked: null },
+        hotkey: { None: null },
+        visibility: { Private: null },
       },
     });
   });
@@ -44,7 +46,7 @@ describe("Errors", () => {
       AMOUNT_TO_STAKE
     );
 
-    await manager.advanceBlocksAndTimeMinutes(5);
+    await manager.advanceBlocksAndTimeMinutes(8);
     node = await manager.getNode(node.id);
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache.neuron_id[0]
@@ -56,7 +58,9 @@ describe("Errors", () => {
 
   it("should set maximum delay when variable exceeds maximum", async () => {
     let aboveMaximum = MAX_DISSOLVE_DELAY_DAYS + MINIMUM_DISSOLVE_DELAY_DAYS;
-    await manager.modifyNode(node.id, [{ DelayDays: aboveMaximum }], [], []);
+    await manager.modifyNode(node.id, {
+      updateDelay: { DelayDays: aboveMaximum },
+    });
 
     await manager.advanceBlocksAndTimeMinutes(3);
 

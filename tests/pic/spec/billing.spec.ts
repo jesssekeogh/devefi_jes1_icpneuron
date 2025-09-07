@@ -28,6 +28,8 @@ describe("Billing", () => {
           dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
           followee: { FolloweeId: maturityFollowee },
           dissolve_status: { Locked: null },
+          hotkey: { None: null },
+          visibility: { Private: null },
         },
       });
       done.push(node);

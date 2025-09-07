@@ -21,6 +21,8 @@ describe("Message", () => {
         dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
         followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
         dissolve_status: { Locked: null },
+        hotkey: { None: null },
+        visibility: { Private: null },
       },
     });
   });
@@ -33,12 +35,10 @@ describe("Message", () => {
     await manager.stopNnsCanister();
     await manager.advanceBlocksAndTimeMinutes(3);
 
-    await manager.modifyNode(
-      node.id,
-      [],
-      [{ FolloweeId: MOCK_FOLLOWEE_TO_SET_2 }],
-      [{ Dissolving: null }]
-    );
+    await manager.modifyNode(node.id, {
+      updateFollowee: { FolloweeId: MOCK_FOLLOWEE_TO_SET_2 },
+      updateDissolving: { Dissolving: null },
+    });
     await manager.advanceBlocksAndTimeMinutes(5);
 
     node = await manager.getNode(node.id);
@@ -110,7 +110,7 @@ describe("Message", () => {
     // update followees should now be there
     expect(
       node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
-        if ("Ok" in log) return log.Ok.operation === "update_followees";
+        if ("Ok" in log) return log.Ok.operation === "update_following";
       })
     ).toBeTruthy();
   });

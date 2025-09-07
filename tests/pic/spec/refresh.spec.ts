@@ -1,6 +1,13 @@
 import { Manager } from "../setup/manager.ts";
 import { NodeShared } from "../setup/nns_test_pylon/declarations/nns_test_pylon.did.js";
-import { AMOUNT_TO_STAKE, MOCK_FOLLOWEE_TO_SET_2 } from "../setup/constants.ts";
+import {
+  AMOUNT_TO_STAKE,
+  MOCK_FOLLOWEE_TO_SET,
+  MOCK_FOLLOWEE_TO_SET_2,
+  MOCK_HOTKEY_TO_SET,
+  MOCK_HOTKEY_TO_SET_2,
+  MAX_DISSOLVE_DELAY_DAYS,
+} from "../setup/constants.ts";
 
 describe("Refresh", () => {
   let manager: Manager;
@@ -15,6 +22,8 @@ describe("Refresh", () => {
         dissolve_delay: { Default: null },
         followee: { Default: null },
         dissolve_status: { Locked: null },
+        hotkey: { None: null },
+        visibility: { Private: null },
       },
     });
   });
@@ -70,12 +79,9 @@ describe("Refresh", () => {
     const oldDoneTimestamp =
       node.custom[0].devefi_jes1_icpneuron.internals.updating;
 
-    await manager.modifyNode(
-      node.id,
-      [],
-      [{ FolloweeId: MOCK_FOLLOWEE_TO_SET_2 }],
-      []
-    );
+    await manager.modifyNode(node.id, {
+      updateFollowee: { FolloweeId: MOCK_FOLLOWEE_TO_SET_2 },
+    });
 
     await manager.advanceBlocksAndTimeMinutes(1);
     node = await manager.getNode(node.id);
@@ -108,9 +114,247 @@ describe("Refresh", () => {
     await manager.advanceBlocksAndTimeHours(1);
     node = await manager.getNode(node.id);
 
-    const latestDoneTimestamp = node.custom[0].devefi_jes1_icpneuron.internals.updating;
+    const latestDoneTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
 
     // it should have not updated again
     expect(latestDoneTimestamp).toEqual(newDoneTimestamp);
+  });
+
+  it("should refresh neuron once after hotkey changes and not constantly refresh", async () => {
+    const initialTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Change hotkey
+    await manager.modifyNode(node.id, {
+      updateHotkey: { HotkeyId: MOCK_HOTKEY_TO_SET },
+    });
+
+    await manager.advanceBlocksAndTimeMinutes(5);
+    node = await manager.getNode(node.id);
+
+    const firstRefreshTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should have triggered a refresh
+    expect(firstRefreshTimestamp).not.toEqual(initialTimestamp);
+
+    // Verify hotkey was updated in cache
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.hot_keys).toHaveLength(1);
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.hot_keys[0]).toEqual(
+      MOCK_HOTKEY_TO_SET
+    );
+
+    // Wait additional time and verify no additional refresh
+    await manager.advanceBlocksAndTimeMinutes(6);
+    node = await manager.getNode(node.id);
+
+    const laterTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should not have refreshed again
+    expect(laterTimestamp).toEqual(firstRefreshTimestamp);
+  });
+
+  it("should refresh neuron once after visibility changes and not constantly refresh", async () => {
+    const initialTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Change visibility
+    await manager.modifyNode(node.id, {
+      updateVisibility: { Public: null },
+    });
+
+    await manager.advanceBlocksAndTimeMinutes(5);
+    node = await manager.getNode(node.id);
+
+    const firstRefreshTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should have triggered a refresh
+    expect(firstRefreshTimestamp).not.toEqual(initialTimestamp);
+
+    // Verify visibility was updated in cache
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.visibility[0]).toBe(2);
+
+    // Wait additional time and verify no additional refresh
+    await manager.advanceBlocksAndTimeMinutes(6);
+    node = await manager.getNode(node.id);
+
+    const laterTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should not have refreshed again
+    expect(laterTimestamp).toEqual(firstRefreshTimestamp);
+  });
+
+  it("should refresh neuron once after dissolve delay changes and not constantly refresh", async () => {
+    const initialTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Change dissolve delay
+    await manager.modifyNode(node.id, {
+      updateDelay: { DelayDays: MAX_DISSOLVE_DELAY_DAYS },
+    });
+
+    await manager.advanceBlocksAndTimeMinutes(5);
+    node = await manager.getNode(node.id);
+
+    const firstRefreshTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should have triggered a refresh
+    expect(firstRefreshTimestamp).not.toEqual(initialTimestamp);
+
+    // Verify dissolve delay was updated in cache
+    expect(
+      node.custom[0].devefi_jes1_icpneuron.cache.dissolve_delay_seconds[0]
+    ).toBe(manager.convertDaysToSeconds(MAX_DISSOLVE_DELAY_DAYS));
+
+    // Wait additional time and verify no additional refresh
+    await manager.advanceBlocksAndTimeMinutes(6);
+    node = await manager.getNode(node.id);
+
+    const laterTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should not have refreshed again
+    expect(laterTimestamp).toEqual(firstRefreshTimestamp);
+  });
+
+  it("should refresh neuron once after dissolve status changes and not constantly refresh", async () => {
+    const initialTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Change dissolve status
+    await manager.modifyNode(node.id, {
+      updateDissolving: { Dissolving: null },
+    });
+
+    await manager.advanceBlocksAndTimeMinutes(5);
+    node = await manager.getNode(node.id);
+
+    const firstRefreshTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should have triggered a refresh
+    expect(firstRefreshTimestamp).not.toEqual(initialTimestamp);
+
+    // Verify dissolve status was updated in cache
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.state[0]).toBe(
+      manager.getNeuronStates().dissolving
+    );
+
+    // Wait additional time and verify no additional refresh
+    await manager.advanceBlocksAndTimeMinutes(6);
+    node = await manager.getNode(node.id);
+
+    const laterTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should not have refreshed again
+    expect(laterTimestamp).toEqual(firstRefreshTimestamp);
+  });
+
+  it("should refresh neuron once after multiple config changes and not constantly refresh", async () => {
+    const initialTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Make multiple config changes at once
+    await manager.modifyNode(node.id, {
+      updateHotkey: { HotkeyId: MOCK_HOTKEY_TO_SET_2 },
+      updateVisibility: { Private: null },
+      updateFollowee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
+    });
+
+    await manager.advanceBlocksAndTimeMinutes(6);
+    node = await manager.getNode(node.id);
+
+    const firstRefreshTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should have triggered a refresh
+    expect(firstRefreshTimestamp).not.toEqual(initialTimestamp);
+
+    // Verify all changes were applied
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.hot_keys[0]).toEqual(
+      MOCK_HOTKEY_TO_SET_2
+    );
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.visibility[0]).toBe(1);
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.followees).toHaveLength(3);
+
+    // Wait additional time and verify no additional refresh
+    await manager.advanceBlocksAndTimeMinutes(8);
+    node = await manager.getNode(node.id);
+
+    const laterTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should not have refreshed again
+    expect(laterTimestamp).toEqual(firstRefreshTimestamp);
+  });
+
+  it("should clear followees and refresh once without constant refreshing", async () => {
+    const initialTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Clear followees
+    await manager.modifyNode(node.id, {
+      updateFollowee: { None: null },
+    });
+
+    await manager.advanceBlocksAndTimeMinutes(5);
+    node = await manager.getNode(node.id);
+
+    const firstRefreshTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should have triggered a refresh
+    expect(firstRefreshTimestamp).not.toEqual(initialTimestamp);
+
+    // Verify followees were cleared
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.followees).toHaveLength(0);
+
+    // Wait additional time and verify no additional refresh
+    await manager.advanceBlocksAndTimeMinutes(8);
+    node = await manager.getNode(node.id);
+
+    const laterTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should not have refreshed again
+    expect(laterTimestamp).toEqual(firstRefreshTimestamp);
+  });
+
+  it("should handle clearing hotkey and refresh once without constant refreshing", async () => {
+    const initialTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Clear hotkey
+    await manager.modifyNode(node.id, {
+      updateHotkey: { None: null },
+    });
+
+    await manager.advanceBlocksAndTimeMinutes(5);
+    node = await manager.getNode(node.id);
+
+    const firstRefreshTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should have triggered a refresh
+    expect(firstRefreshTimestamp).not.toEqual(initialTimestamp);
+
+    // Verify hotkey was cleared
+    expect(node.custom[0].devefi_jes1_icpneuron.cache.hot_keys).toHaveLength(0);
+
+    // Wait additional time and verify no additional refresh
+    await manager.advanceBlocksAndTimeMinutes(8);
+    node = await manager.getNode(node.id);
+
+    const laterTimestamp =
+      node.custom[0].devefi_jes1_icpneuron.internals.updating;
+
+    // Should not have refreshed again
+    expect(laterTimestamp).toEqual(firstRefreshTimestamp);
   });
 });

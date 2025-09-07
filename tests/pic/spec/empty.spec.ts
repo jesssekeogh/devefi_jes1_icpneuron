@@ -19,6 +19,8 @@ describe("Empty", () => {
         dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
         followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
         dissolve_status: { Locked: null },
+        hotkey: { None: null },
+        visibility: { Private: null },
       },
     });
   });
@@ -40,29 +42,29 @@ describe("Empty", () => {
 
   it("should not refresh empty node every 3 minutes", async () => {
     // Get current updating timestamp
-    const initialTimestamp = 
+    const initialTimestamp =
       node.custom[0].devefi_jes1_icpneuron.internals.updating;
-    
+
     // Advance time by 3 minutes and a bit to allow for processing
     await manager.advanceBlocksAndTimeMinutes(5);
-    
+
     // Get the node again
     node = await manager.getNode(node.id);
-    
+
     // Check that the timestamp has not changed
-    const newTimestamp = 
+    const newTimestamp =
       node.custom[0].devefi_jes1_icpneuron.internals.updating;
-    
+
     // Use deep equality to compare objects
     expect(newTimestamp).toEqual(initialTimestamp);
-    
+
     // Let's verify again with another time advancement to be sure
     await manager.advanceBlocksAndTimeMinutes(5);
-    
+
     node = await manager.getNode(node.id);
-    const finalTimestamp = 
+    const finalTimestamp =
       node.custom[0].devefi_jes1_icpneuron.internals.updating;
-    
+
     // Should still match the initial timestamp
     expect(finalTimestamp).toEqual(initialTimestamp);
   });

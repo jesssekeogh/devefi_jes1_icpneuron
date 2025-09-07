@@ -190,8 +190,7 @@ module {
             nodeMem.internals.local_idx += 1;
             let newNonce : Nat64 = NodeUtils.get_neuron_nonce(vid, nodeMem.internals.local_idx);
 
-            // TODO pass in new nonce
-            switch (await* neuron.split({ amount_e8s = amount_e8s })) {
+            switch (await* neuron.split({ amount_e8s = amount_e8s; nonce = ?newNonce })) {
                 case (#ok(_)) {
                     NodeUtils.log_activity(nodeMem, "split_neuron", #Ok(()));
                     await* actions.refresh_cache();
@@ -271,7 +270,7 @@ module {
                     await* neuron.disburse_maturity();
                     await* neuron.disburse_neuron();
                     await* neuron.refresh_voting_power();
-                    await* neuron.update_hotkeys();
+                    await* neuron.update_hotkey();
                     await* neuron.update_visibility();
                     await* neuron.refresh_cache();
                 } catch (err) {
@@ -288,7 +287,7 @@ module {
                     var dissolve_delay = t.variables.dissolve_delay;
                     var dissolve_status = t.variables.dissolve_status;
                     var followee = t.variables.followee;
-                    var hotkeys = t.variables.hotkeys;
+                    var hotkey = t.variables.hotkey;
                     var visibility = t.variables.visibility;
                 };
                 internals = {
@@ -345,7 +344,7 @@ module {
             t.variables.dissolve_delay := Option.get(m.dissolve_delay, t.variables.dissolve_delay);
             t.variables.dissolve_status := Option.get(m.dissolve_status, t.variables.dissolve_status);
             t.variables.followee := Option.get(m.followee, t.variables.followee);
-            t.variables.hotkeys := Option.get(m.hotkeys, t.variables.hotkeys);
+            t.variables.hotkey := Option.get(m.hotkey, t.variables.hotkey);
             t.variables.visibility := Option.get(m.visibility, t.variables.visibility);
             #ok();
         };
@@ -358,7 +357,7 @@ module {
                     dissolve_delay = t.variables.dissolve_delay;
                     dissolve_status = t.variables.dissolve_status;
                     followee = t.variables.followee;
-                    hotkeys = t.variables.hotkeys;
+                    hotkey = t.variables.hotkey;
                     visibility = t.variables.visibility;
                 };
                 internals = {
@@ -397,7 +396,7 @@ module {
                     dissolve_delay = #Default;
                     dissolve_status = #Locked;
                     followee = #Default;
-                    hotkeys = #None;
+                    hotkey = #None;
                     visibility = #Private;
                 };
             };

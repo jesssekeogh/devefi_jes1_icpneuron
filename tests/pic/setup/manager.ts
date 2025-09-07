@@ -36,8 +36,10 @@ import Router from "./router/router.ts";
 
 interface NeuronParams {
   dissolve_delay: { Default: null } | { DelayDays: bigint };
-  followee: { Default: null } | { FolloweeId: bigint };
+  followee: { None: null } | { Default: null } | { FolloweeId: bigint };
   dissolve_status: { Dissolving: null } | { Locked: null };
+  hotkey: { None: null } | { HotkeyId: Principal };
+  visibility: { Private: null } | { Public: null };
 }
 
 interface StakeNodeParams {
@@ -236,7 +238,7 @@ export class Manager {
     for (let i = 0; i < rounds; i++) {
       await this.pic.advanceTime(sixHoursMins * 60 * 1000); // Convert minutes to milliseconds
       await this.pic.tick(blocksForSixHours);
-      
+
       // Advance 10 minutes (to process things)
       await this.pic.advanceTime(shortIntervalMins * 60 * 1000); // Convert minutes to milliseconds
       await this.pic.tick(blocksForShortInterval);
@@ -316,6 +318,8 @@ export class Manager {
           dissolve_delay: stakeParams.neuron_params.dissolve_delay,
           dissolve_status: stakeParams.neuron_params.dissolve_status,
           followee: stakeParams.neuron_params.followee,
+          hotkey: stakeParams.neuron_params.hotkey,
+          visibility: stakeParams.neuron_params.visibility,
         },
       },
     };
@@ -339,15 +343,23 @@ export class Manager {
 
   public async modifyNode(
     nodeId: number,
-    updateDelaySeconds: [] | [{ Default: null } | { DelayDays: bigint }],
-    updateFollowee: [] | [{ Default: null } | { FolloweeId: bigint }],
-    updateDissolving: [] | [{ Dissolving: null } | { Locked: null }]
+    params: {
+      updateDelay?: { Default: null } | { DelayDays: bigint };
+      updateFollowee?: { None: null } | { Default: null } | { FolloweeId: bigint };
+      updateDissolving?: { Dissolving: null } | { Locked: null };
+      updateHotkey?: { None: null } | { HotkeyId: Principal };
+      updateVisibility?: { Private: null } | { Public: null };
+    } = {}
   ): Promise<BatchCommandResponse> {
     let modCustomReq: ModifyRequest = {
       devefi_jes1_icpneuron: {
-        dissolve_delay: updateDelaySeconds,
-        dissolve_status: updateDissolving,
-        followee: updateFollowee,
+        dissolve_delay: params.updateDelay ? [params.updateDelay] : [],
+        dissolve_status: params.updateDissolving
+          ? [params.updateDissolving]
+          : [],
+        followee: params.updateFollowee ? [params.updateFollowee] : [],
+        hotkey: params.updateHotkey ? [params.updateHotkey] : [],
+        visibility: params.updateVisibility ? [params.updateVisibility] : [],
       },
     };
 
@@ -409,7 +421,7 @@ export class Manager {
       stakeParams.stake_amount
     );
 
-    await this.advanceBlocksAndTimeMinutes(5);
+    await this.advanceBlocksAndTimeMinutes(8);
 
     let refreshedNode = await this.getNode(node.id);
 

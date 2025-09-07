@@ -25,9 +25,6 @@ module Constants {
     // Maximum number of activities to keep in the main neuron's activity log
     public let ACTIVITY_LOG_LIMIT : Nat = 10;
 
-    // Maximum number of Hotkeys allowed
-    public let HOTKEY_LIMIT : Nat = 10;
-
     // Used to calculate days as seconds for delay inputs
     public let ONE_DAY_SECONDS : Nat64 = 86400;
 

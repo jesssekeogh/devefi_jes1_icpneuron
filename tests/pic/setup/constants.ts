@@ -13,10 +13,15 @@ export const NNS_ROOT_CANISTER_ID = Principal.fromText(
   "r7inp-6aaaa-aaaaa-aaabq-cai"
 );
 
-export const NNS_STATE_PATH = resolve(__dirname, "..", "nns_state");
+export const MOCK_HOTKEY_TO_SET = Principal.fromText(
+  "mxst2-5rf7k-unrqz-ojvao-p4jud-kra3z-3hwuk-lhduh-d7kv7-pfjvh-6qe"
+);
 
-export const NNS_SUBNET_ID =
-  "xr5zq-dc2i5-5bzsv-3wsdt-o7vnx-nxagi-53mmp-lpfzv-pcji3-27tpj-jqe";
+export const MOCK_HOTKEY_TO_SET_2 = Principal.fromText(
+  "slmx6-767wr-6blue-lximp-562bk-76ekl-3cxzi-dwtwd-y3lsy-ivl5e-vae"
+);
+
+export const NNS_STATE_PATH = resolve(__dirname, "..", "nns_state");
 
 //
 // helper constants:

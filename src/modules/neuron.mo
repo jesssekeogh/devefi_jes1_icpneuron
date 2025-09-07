@@ -37,7 +37,13 @@ module {
                 Nat32.toNat(nodeMem.internals.local_idx) + 1,
                 func(idx : Nat) : { subaccount : Blob } {
                     let neuronNonce = NodeUtils.get_neuron_nonce(vid, Nat32.fromNat(idx));
-                    let neuronSub = Tools.computeNeuronStakingSubaccountBytes(core.getThisCan(), neuronNonce);
+
+                    // compute the main neuron and the split neurons
+                    let neuronSub = if (idx == 0) {
+                        Tools.computeNeuronSubaccountBytes(core.getThisCan(), neuronNonce, #stake);
+                    } else {
+                        Tools.computeNeuronSubaccountBytes(core.getThisCan(), neuronNonce, #split);
+                    };
 
                     ignore Map.put(neuronNonces, Map.bhash, neuronSub, neuronNonce);
 
@@ -107,16 +113,7 @@ module {
                 },
             );
 
-            // only add neurons with valid stake
-            let filteredNeuronCache = Array.filter(
-                neuronCache,
-                func(neuron : Ver4.SharedNeuronCache) : Bool {
-                    let ?currentStake = neuron.cached_neuron_stake_e8s else return false;
-                    return currentStake > 0;
-                },
-            );
-
-            nodeMem.neuron_cache := filteredNeuronCache;
+            nodeMem.neuron_cache := neuronCache;
         };
 
         public func refresh_neuron() : async* () {
@@ -292,10 +289,8 @@ module {
             };
         };
 
-        public func update_hotkeys() : async* () {
+        public func update_hotkey() : async* () {
             let ?neuron_id = CacheManager.hotkeys_changed(nodeMem) else return;
-
-            let #HotkeyIds(hotkeysToSet) = nodeMem.variables.hotkeys else return;
 
             // Find the specific neuron in the cache
             let ?targetNeuron = Array.find(
@@ -310,15 +305,8 @@ module {
                 neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
             });
 
-            // Find and remove hotkeys no longer needed
-            let hotkeysToRemove = Array.filter(
-                targetNeuron.hot_keys,
-                func(current : Principal) : Bool {
-                    Option.isNull(Array.find(hotkeysToSet, func(target : Principal) : Bool { current == target }));
-                },
-            );
-
-            for (hotkey in hotkeysToRemove.vals()) {
+            // Remove all existing hotkeys
+            for (hotkey in targetNeuron.hot_keys.vals()) {
                 switch (await* neuron.removeHotKey({ hot_key_to_remove = hotkey })) {
                     case (#ok(_)) {
                         NodeUtils.log_activity(nodeMem, "remove_hotkey", #Ok);
@@ -329,21 +317,19 @@ module {
                 };
             };
 
-            // Find and add new hotkeys
-            let hotkeysToAdd = Array.filter(
-                hotkeysToSet,
-                func(target : Principal) : Bool {
-                    Option.isNull(Array.find(targetNeuron.hot_keys, func(current : Principal) : Bool { current == target }));
-                },
-            );
-
-            for (hotkey in hotkeysToAdd.vals()) {
-                switch (await* neuron.addHotKey({ new_hot_key = hotkey })) {
-                    case (#ok(_)) {
-                        NodeUtils.log_activity(nodeMem, "add_hotkey", #Ok);
-                    };
-                    case (#err(err)) {
-                        NodeUtils.log_activity(nodeMem, "add_hotkey", #Err(debug_show err));
+            // Add the new hotkey if specified
+            switch (nodeMem.variables.hotkey) {
+                case (#None) {
+                    // No hotkey to add, all existing hotkeys already removed
+                };
+                case (#HotkeyId(hotkeyToSet)) {
+                    switch (await* neuron.addHotKey({ new_hot_key = hotkeyToSet })) {
+                        case (#ok(_)) {
+                            NodeUtils.log_activity(nodeMem, "add_hotkey", #Ok);
+                        };
+                        case (#err(err)) {
+                            NodeUtils.log_activity(nodeMem, "add_hotkey", #Err(debug_show err));
+                        };
                     };
                 };
             };

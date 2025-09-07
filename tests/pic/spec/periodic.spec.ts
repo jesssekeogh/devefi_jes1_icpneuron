@@ -19,6 +19,8 @@ describe("Periodic", () => {
         dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
         followee: { FolloweeId: MOCK_FOLLOWEE_TO_SET },
         dissolve_status: { Locked: null },
+        hotkey: { None: null },
+        visibility: { Private: null },
       },
     });
   });
@@ -35,12 +37,12 @@ describe("Periodic", () => {
       node.custom[0].devefi_jes1_icpneuron.cache.deciding_voting_power[0]
     ).toBeDefined();
 
-    expect(
+    const originalVotingPowerTimestamp =
       node.custom[0].devefi_jes1_icpneuron.cache
-        .voting_power_refreshed_timestamp_seconds[0]
-    ).toBe(
-      node.custom[0].devefi_jes1_icpneuron.cache.created_timestamp_seconds[0]
-    );
+        .voting_power_refreshed_timestamp_seconds[0];
+
+    // Store the time before advancement for validation
+    const timeBeforeAdvancement = await manager.getNow();
 
     await manager.advanceTime(8208000); // 95 days
     await manager.advanceBlocks(100);
@@ -51,22 +53,24 @@ describe("Periodic", () => {
     const refreshedTimestamp =
       node.custom[0].devefi_jes1_icpneuron.cache
         .voting_power_refreshed_timestamp_seconds[0];
-    const createdTimestamp =
-      node.custom[0].devefi_jes1_icpneuron.cache.created_timestamp_seconds[0];
 
     // Check that the refresh timestamp is NOT the same as creation timestamp
-    expect(refreshedTimestamp).not.toBe(createdTimestamp);
+    expect(refreshedTimestamp).not.toBe(originalVotingPowerTimestamp);
 
-    // Check that the refresh timestamp is recent (within a reasonable range of expected time)
-    expect(refreshedTimestamp).toBeGreaterThanOrEqual(createdTimestamp);
+    // Check that the refresh timestamp is greater than original (moved forward)
+    expect(refreshedTimestamp).toBeGreaterThan(originalVotingPowerTimestamp);
+    
+    // Verify the timestamp reflects recent activity (after our time advancement)
+    // Convert milliseconds to seconds for comparison
+    const timeBeforeAdvancementSeconds = Number(timeBeforeAdvancement / 1000n);
+    expect(Number(refreshedTimestamp)).toBeGreaterThan(timeBeforeAdvancementSeconds);
 
     // should have successful refresh_voting_power operation in log
     expect(
-        node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
-          if ("Ok" in log)
-            return log.Ok.operation === "refresh_voting_power";
-          return false;
-        })
-      ).toBeTruthy();
+      node.custom[0].devefi_jes1_icpneuron.log.some((log) => {
+        if ("Ok" in log) return log.Ok.operation === "refresh_voting_power";
+        return false;
+      })
+    ).toBeTruthy();
   });
 });

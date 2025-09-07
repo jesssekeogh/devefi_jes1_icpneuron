@@ -44,9 +44,7 @@ module NodeUtils {
             Option.isSome(CacheManager.dissolving_changed(nodeMem)) or
             Option.isSome(CacheManager.delay_changed(nodeMem)) or
             Option.isSome(CacheManager.hotkeys_changed(nodeMem)) or
-            Option.isSome(CacheManager.visibility_changed(nodeMem)) or
-            Option.isSome(CacheManager.maturity_ready(nodeMem)) or
-            Option.isSome(CacheManager.neuron_ready_to_disburse(nodeMem))
+            Option.isSome(CacheManager.visibility_changed(nodeMem))
         );
     };
 

@@ -8,7 +8,7 @@ module {
             dissolve_delay : Ver4.DissolveDelay;
             dissolve_status : Ver4.DissolveStatus;
             followee : Ver4.Followee;
-            hotkeys : Ver4.Hotkeys;
+            hotkey : Ver4.Hotkey;
             visibility : Ver4.Visibility;
         };
     };
@@ -17,7 +17,7 @@ module {
         dissolve_delay : ?Ver4.DissolveDelay;
         dissolve_status : ?Ver4.DissolveStatus;
         followee : ?Ver4.Followee;
-        hotkeys : ?Ver4.Hotkeys;
+        hotkey : ?Ver4.Hotkey;
         visibility : ?Ver4.Visibility;
     };
 
@@ -26,7 +26,7 @@ module {
             dissolve_delay : Ver4.DissolveDelay;
             dissolve_status : Ver4.DissolveStatus;
             followee : Ver4.Followee;
-            hotkeys : Ver4.Hotkeys;
+            hotkey : Ver4.Hotkey;
             visibility : Ver4.Visibility;
         };
         internals : {

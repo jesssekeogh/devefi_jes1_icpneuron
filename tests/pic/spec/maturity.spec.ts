@@ -24,6 +24,8 @@ describe("Maturity", () => {
         dissolve_delay: { DelayDays: MINIMUM_DISSOLVE_DELAY_DAYS },
         followee: { FolloweeId: maturityFollowee },
         dissolve_status: { Locked: null },
+        hotkey: { None: null },
+        visibility: { Private: null },
       },
     });
   });
@@ -113,7 +115,7 @@ describe("Maturity", () => {
 
     await manager.advanceBlocksAndTimeDays(8);
     await manager.advanceBlocksAndTimeMinutes(3);
-    
+
     node = await manager.getNode(node.id);
     expect(
       node.custom[0].devefi_jes1_icpneuron.cache

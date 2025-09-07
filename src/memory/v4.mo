@@ -26,7 +26,7 @@ module {
                                     var dissolve_delay = nodeMem.variables.dissolve_delay;
                                     var dissolve_status = nodeMem.variables.dissolve_status;
                                     var followee = nodeMem.variables.followee;
-                                    var hotkeys = #None;
+                                    var hotkey = #None;
                                     var visibility = #Private;
                                 };
                                 internals = {
@@ -69,7 +69,7 @@ module {
             var dissolve_delay : DissolveDelay;
             var dissolve_status : DissolveStatus;
             var followee : Followee;
-            var hotkeys : Hotkeys;
+            var hotkey : Hotkey;
             var visibility : Visibility;
         };
         internals : {
@@ -89,9 +89,9 @@ module {
         #Public;
     };
 
-    public type Hotkeys = {
+    public type Hotkey = {
         #None;
-        #HotkeyIds : [Principal];
+        #HotkeyId : Principal;
     };
 
     public type DissolveDelay = {

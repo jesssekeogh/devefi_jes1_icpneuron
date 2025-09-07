@@ -1,4 +1,3 @@
-import Option "mo:base/Option";
 import Array "mo:base/Array";
 import Ver4 "../memory/v4";
 import U "mo:devefi/utils";
@@ -79,28 +78,31 @@ module CacheManager {
     };
 
     public func hotkeys_changed(nodeMem : IcpNeuronNodeMem) : ?Nat64 {
-        let #HotkeyIds(hotkeysToSet) = nodeMem.variables.hotkeys else return null;
-
-        if (hotkeysToSet.size() > Constants.HOTKEY_LIMIT) return null;
-
-        label hotkeyLoop for (neuron in nodeMem.neuron_cache.vals()) {
-            let neuronId = neuron.neuron_id;
-
-            // Quick size check first - most common case
-            if (neuron.hot_keys.size() != hotkeysToSet.size()) return neuronId;
-
-            // If both are empty, they match
-            if (neuron.hot_keys.size() == 0) continue hotkeyLoop;
-
-            // Check if all hotkeys in the new set exist in current set
-            for (hotkeyToSet in hotkeysToSet.vals()) {
-                if (Option.isNull(Array.find(neuron.hot_keys, func(current : Principal) : Bool { current == hotkeyToSet }))) {
-                    return neuronId; // not found, they're different
+        switch (nodeMem.variables.hotkey) {
+            case (#None) {
+                // If hotkeys should be empty, return first neuron that has any hotkeys
+                for (neuron in nodeMem.neuron_cache.vals()) {
+                    let neuronId = neuron.neuron_id;
+                    if (neuron.hot_keys.size() > 0) return neuronId;
                 };
+                return null;
+            };
+            case (#HotkeyId(hotkeyToSet)) {
+                for (neuron in nodeMem.neuron_cache.vals()) {
+                    let neuronId = neuron.neuron_id;
+
+                    // Check if the specified hotkey exists in the hotkeys array
+                    let hotkeyExists = Array.find<Principal>(neuron.hot_keys, func(hotkey) { hotkey == hotkeyToSet });
+                    
+                    switch (hotkeyExists) {
+                        case (null) { return neuronId }; // Hotkey not found
+                        case (?_) { /* Hotkey found, continue */ };
+                    };
+                };
+
+                return null;
             };
         };
-
-        return null;
     };
 
     public func visibility_changed(nodeMem : IcpNeuronNodeMem) : ?Nat64 {
