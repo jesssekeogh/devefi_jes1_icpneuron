@@ -8,6 +8,7 @@ export interface Account {
 }
 export interface AccountIdentifier { 'hash' : Uint8Array | number[] }
 export type Action = { 'RegisterKnownNeuron' : KnownNeuron } |
+  { 'FulfillSubnetRentalRequest' : FulfillSubnetRentalRequest } |
   { 'ManageNeuron' : ManageNeuron } |
   { 'UpdateCanisterSettings' : UpdateCanisterSettings } |
   { 'InstallCode' : InstallCode } |
@@ -84,6 +85,7 @@ export type Command = { 'Spawn' : Spawn } |
   { 'RegisterVote' : RegisterVote } |
   { 'Merge' : Merge } |
   { 'DisburseToNeuron' : DisburseToNeuron } |
+  { 'SetFollowing' : SetFollowing } |
   { 'MakeProposal' : Proposal } |
   { 'StakeMaturity' : StakeMaturity } |
   { 'MergeMaturity' : MergeMaturity } |
@@ -99,6 +101,7 @@ export type Command_1 = { 'Error' : GovernanceError } |
   { 'RegisterVote' : {} } |
   { 'Merge' : MergeResponse } |
   { 'DisburseToNeuron' : SpawnResponse } |
+  { 'SetFollowing' : SetFollowingResponse } |
   { 'MakeProposal' : MakeProposalResponse } |
   { 'StakeMaturity' : StakeMaturityResponse } |
   { 'MergeMaturity' : MergeMaturityResponse } |
@@ -153,6 +156,7 @@ export interface Disburse {
   'amount' : [] | [Amount],
 }
 export interface DisburseMaturity {
+  'to_account_identifier' : [] | [AccountIdentifier],
   'to_account' : [] | [Account],
   'percentage_to_disburse' : number,
 }
@@ -176,8 +180,15 @@ export interface ExecuteNnsFunction {
 }
 export interface Follow { 'topic' : number, 'followees' : Array<NeuronId> }
 export interface Followees { 'followees' : Array<NeuronId> }
-export interface Followers { 'followers' : Array<NeuronId> }
-export interface FollowersMap { 'followers_map' : Array<[bigint, Followers]> }
+export interface FolloweesForTopic {
+  'topic' : [] | [number],
+  'followees' : [] | [Array<NeuronId>],
+}
+export interface FulfillSubnetRentalRequest {
+  'user' : [] | [Principal],
+  'replica_version_id' : [] | [string],
+  'node_ids' : [] | [Array<Principal>],
+}
 export interface GetNeuronsFundAuditInfoRequest {
   'nns_proposal_id' : [] | [ProposalId],
 }
@@ -203,7 +214,6 @@ export interface Governance {
   'latest_reward_event' : [] | [RewardEvent],
   'to_claim_transfers' : Array<NeuronStakeTransfer>,
   'short_voting_period_seconds' : bigint,
-  'topic_followee_index' : Array<[number, FollowersMap]>,
   'proposals' : Array<[bigint, ProposalData]>,
   'xdr_conversion_rate' : [] | [XdrConversionRate],
   'in_flight_commands' : Array<[bigint, NeuronInFlightCommand]>,
@@ -235,6 +245,7 @@ export interface GovernanceCachedMetrics {
   'total_voting_power_non_self_authenticating_controller' : [] | [bigint],
   'total_staked_maturity_e8s_equivalent' : bigint,
   'not_dissolving_neurons_e8s_buckets_ect' : Array<[bigint, number]>,
+  'spawning_neurons_count' : bigint,
   'declining_voting_power_neuron_subset_metrics' : [] | [NeuronSubsetMetrics],
   'total_staked_e8s_ect' : bigint,
   'not_dissolving_neurons_staked_maturity_e8s_equivalent_sum' : bigint,
@@ -383,6 +394,7 @@ export type ManageNeuronCommandRequest = { 'Spawn' : Spawn } |
   { 'RegisterVote' : RegisterVote } |
   { 'Merge' : Merge } |
   { 'DisburseToNeuron' : DisburseToNeuron } |
+  { 'SetFollowing' : SetFollowing } |
   { 'MakeProposal' : MakeProposalRequest } |
   { 'StakeMaturity' : StakeMaturity } |
   { 'MergeMaturity' : MergeMaturity } |
@@ -393,6 +405,13 @@ export interface ManageNeuronRequest {
   'neuron_id_or_subaccount' : [] | [NeuronIdOrSubaccount],
 }
 export interface ManageNeuronResponse { 'command' : [] | [Command_1] }
+export interface MaturityDisbursement {
+  'account_identifier_to_disburse_to' : [] | [AccountIdentifier],
+  'timestamp_of_disbursement_seconds' : [] | [bigint],
+  'amount_e8s' : [] | [bigint],
+  'account_to_disburse_to' : [] | [Account],
+  'finalize_disbursement_timestamp_seconds' : [] | [bigint],
+}
 export interface Merge { 'source_neuron_id' : [] | [NeuronId] }
 export interface MergeMaturity { 'percentage_to_merge' : number }
 export interface MergeMaturityResponse {
@@ -446,6 +465,7 @@ export interface Neuron {
   'hot_keys' : Array<Principal>,
   'account' : Uint8Array | number[],
   'joined_community_fund_timestamp_seconds' : [] | [bigint],
+  'maturity_disbursements_in_progress' : [] | [Array<MaturityDisbursement>],
   'dissolve_state' : [] | [DissolveState],
   'followees' : Array<[number, Followees]>,
   'neuron_fees_e8s' : bigint,
@@ -619,6 +639,7 @@ export interface Proposal {
   'summary' : string,
 }
 export type ProposalActionRequest = { 'RegisterKnownNeuron' : KnownNeuron } |
+  { 'FulfillSubnetRentalRequest' : FulfillSubnetRentalRequest } |
   { 'ManageNeuron' : ManageNeuronRequest } |
   { 'UpdateCanisterSettings' : UpdateCanisterSettings } |
   { 'InstallCode' : InstallCodeRequest } |
@@ -633,6 +654,7 @@ export type ProposalActionRequest = { 'RegisterKnownNeuron' : KnownNeuron } |
   { 'Motion' : Motion };
 export interface ProposalData {
   'id' : [] | [ProposalId],
+  'topic' : [] | [number],
   'failure_reason' : [] | [GovernanceError],
   'ballots' : Array<[bigint, Ballot]>,
   'proposal_timestamp_seconds' : bigint,
@@ -737,6 +759,10 @@ export interface SetDefaultFollowees {
   'default_followees' : Array<[number, Followees]>,
 }
 export interface SetDissolveTimestamp { 'dissolve_timestamp_seconds' : bigint }
+export interface SetFollowing {
+  'topic_following' : [] | [Array<FolloweesForTopic>],
+}
+export type SetFollowingResponse = {};
 export interface SetOpenTimeWindowRequest {
   'open_time_window' : [] | [TimeWindow],
 }
@@ -762,7 +788,7 @@ export interface Spawn {
   'nonce' : [] | [bigint],
 }
 export interface SpawnResponse { 'created_neuron_id' : [] | [NeuronId] }
-export interface Split { 'amount_e8s' : bigint }
+export interface Split { 'memo' : [] | [bigint], 'amount_e8s' : bigint }
 export interface StakeMaturity { 'percentage_to_stake' : [] | [number] }
 export interface StakeMaturityResponse {
   'maturity_e8s' : bigint,

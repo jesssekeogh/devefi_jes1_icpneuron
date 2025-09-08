@@ -13,6 +13,7 @@ import Blob "mo:base/Blob";
 import NodeUtils "./node";
 import CacheManager "./cache";
 import Constants "../constants";
+import GovTypes "mo:neuro/interfaces/nns_interface";
 
 module {
 
@@ -33,21 +34,25 @@ module {
 
             let neuronNonces = Map.new<Blob, Nat64>();
 
+            let mainNeuronNonce = NodeUtils.get_neuron_nonce(vid, 0);
+            let mainNeuronSubaccount = Tools.computeNeuronSubaccountBytes(core.getThisCan(), mainNeuronNonce, #stake);
+
+            ignore Map.put(neuronNonces, Map.bhash, mainNeuronSubaccount, mainNeuronNonce);
+
             let neuronSubs = Array.tabulate<{ subaccount : Blob }>(
                 Nat32.toNat(nodeMem.internals.local_idx) + 1,
                 func(idx : Nat) : { subaccount : Blob } {
                     let neuronNonce = NodeUtils.get_neuron_nonce(vid, Nat32.fromNat(idx));
 
-                    // compute the main neuron and the split neurons
-                    let neuronSub = if (idx == 0) {
-                        Tools.computeNeuronSubaccountBytes(core.getThisCan(), neuronNonce, #stake);
+                    let neuronSub = if (neuronNonce == mainNeuronNonce) {
+                        mainNeuronSubaccount;
                     } else {
                         Tools.computeNeuronSubaccountBytes(core.getThisCan(), neuronNonce, #split);
                     };
 
                     ignore Map.put(neuronNonces, Map.bhash, neuronSub, neuronNonce);
 
-                    {
+                    return {
                         subaccount = neuronSub;
                     };
                 },
@@ -63,18 +68,20 @@ module {
                 page_size = null;
             });
 
+            let neuronInfos = Map.fromIter<Nat64, GovTypes.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
+
             let neuronCache = Array.tabulate(
                 full_neurons.size(),
-                func(idx : Nat) : Ver4.SharedNeuronCache {
+                func(idx : Nat) : ?Ver4.SharedNeuronCache {
                     let full = full_neurons[idx];
-                    let (nid, info) = neuron_infos[idx];
+                    let ?{ id } = full.id else return null;
 
-                    // ensure we get the correct nonce
-                    let neuronNonce = Option.get<Nat64>(Map.get(neuronNonces, Map.bhash, full.account), 0);
+                    let ?neuronNonce = Map.get(neuronNonces, Map.bhash, full.account) else return null;
+                    let ?info = Map.get(neuronInfos, Map.n64hash, id) else return null;
 
                     // set the main neuron
-                    if (neuronNonce == NodeUtils.get_neuron_nonce(vid, 0)) {
-                        nodeMem.cache.neuron_id := ?nid;
+                    if (neuronNonce == mainNeuronNonce) {
+                        nodeMem.cache.neuron_id := ?id;
                         nodeMem.cache.nonce := ?neuronNonce;
                         nodeMem.cache.maturity_e8s_equivalent := ?full.maturity_e8s_equivalent;
                         nodeMem.cache.cached_neuron_stake_e8s := ?full.cached_neuron_stake_e8s;
@@ -92,8 +99,8 @@ module {
                         nodeMem.cache.visibility := full.visibility;
                     };
 
-                    return {
-                        neuron_id = ?nid;
+                    return ?{
+                        neuron_id = ?id;
                         nonce = ?neuronNonce;
                         maturity_e8s_equivalent = ?full.maturity_e8s_equivalent;
                         cached_neuron_stake_e8s = ?full.cached_neuron_stake_e8s;
@@ -113,7 +120,7 @@ module {
                 },
             );
 
-            nodeMem.neuron_cache := neuronCache;
+            nodeMem.neuron_cache := Array.mapFilter<?Ver4.SharedNeuronCache, Ver4.SharedNeuronCache>(neuronCache, func(n) = n);
         };
 
         public func refresh_neuron() : async* () {

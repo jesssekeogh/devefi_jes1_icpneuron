@@ -34,31 +34,10 @@ describe("Maturity", () => {
     await manager.afterAll();
   });
 
-  it("should accrue maturity", async () => {
-    await maturity.createMotionProposal(maturityFollowee);
-
-    await manager.advanceBlocksAndTimeDays(5);
-    await manager.advanceBlocksAndTimeHours(3);
-
-    node = await manager.getNode(node.id);
-
-    expect(
-      node.custom[0].devefi_jes1_icpneuron.cache
-        .maturity_disbursements_in_progress[0].length
-    ).toBe(0);
-    expect(
-      node.custom[0].devefi_jes1_icpneuron.cache.maturity_e8s_equivalent[0]
-    ).toBeGreaterThan(0n);
-
-    // Make sure old spawning technique is no longer used
-    expect(
-      node.custom[0].devefi_jes1_icpneuron.internals.spawning_neurons.length
-    ).toBe(0);
-    expect(node.custom[0].devefi_jes1_icpneuron.internals.local_idx).toBe(0);
-  });
-
   it("should spawn maturity", async () => {
-    await manager.advanceBlocksAndTimeDays(3);
+    await maturity.createMotionProposal(maturityFollowee);
+    await manager.advanceBlocksAndTimeDays(8);
+    
     node = await manager.getNode(node.id);
 
     expect(

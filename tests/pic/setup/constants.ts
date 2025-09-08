@@ -36,6 +36,10 @@ export const EXPECTED_TRANSACTION_FEES: bigint = ICP_TRANSACTION_FEE * 2n;
 export const AMOUNT_TO_STAKE: bigint =
   EXPECTED_STAKE + EXPECTED_TRANSACTION_FEES;
 
+export const SPLIT_AMOUNT: bigint = 20_0000_0000n;
+
+ export const STAKE_MULTIPLIER_FOR_SPLIT: bigint = 20n;
+
 export const MINIMUM_DISSOLVE_DELAY_DAYS: bigint = 184n;
 
 export const MAX_DISSOLVE_DELAY_DAYS: bigint = 2922n;
