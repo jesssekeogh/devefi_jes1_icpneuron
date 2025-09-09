@@ -121,6 +121,22 @@ describe("Split", () => {
     pylon.setIdentity(createIdentity("superSecretAlicePassword"));
   });
 
+  it("should not split neuron with invalid neuron ID", async () => {
+    // Use a fake neuron ID that doesn't exist
+    const fakeNeuronId = 999999999999999999n;
+
+    // Perform the split with invalid neuron ID
+    const splitResult = await manager.getVector().icpneuron_split({
+      vid: node.id,
+      caller_subaccount: [], // null
+      amount_e8s: SPLIT_AMOUNT,
+      neuronId: fakeNeuronId,
+    });
+
+    expect("err" in splitResult).toBe(true);
+    expect(splitResult).toEqual({ err: `Neuron ID 999_999_999_999_999_999 not found in node's neuron cache` });
+  });
+
   it("should successfully split neuron", async () => {
     const mainNeuronId =
       node.custom[0].devefi_jes1_icpneuron.cache.neuron_id[0];
@@ -311,6 +327,35 @@ describe("Split", () => {
     expect(updatedNeurons).toBeGreaterThanOrEqual(1);
     expect(updatedNeurons).toBeLessThanOrEqual(2);
     expect(unchangedNeurons).toBeGreaterThanOrEqual(3);
+
+    // Now wait enough time for ALL neurons to be updated (5 neurons × 3 minutes = 15 minutes total)
+    // We already waited 6 minutes, so wait another 12 minutes to ensure all are updated
+    await manager.advanceBlocksAndTimeMinutes(12);
+
+    node = await manager.getNode(node.id);
+
+    // Verify ALL neurons are now updated with the new values
+    let allUpdatedNeurons = 0;
+    let stillUnchangedNeurons = 0;
+
+    node.custom[0].devefi_jes1_icpneuron.neuron_cache.forEach((neuron) => {
+      const isFullyUpdated =
+        neuron.dissolve_delay_seconds[0] === 
+          manager.convertDaysToSeconds(MAX_DISSOLVE_DELAY_DAYS) &&
+        neuron.followees.length === 0 &&
+        neuron.hot_keys.length === 0 &&
+        neuron.visibility[0] === 2; // Public = 2
+
+      if (isFullyUpdated) {
+        allUpdatedNeurons++;
+      } else {
+        stillUnchangedNeurons++;
+      }
+    });
+
+    // After 18 total minutes (6 + 12), ALL neurons should be updated
+    expect(allUpdatedNeurons).toBe(5); // All 5 neurons should be updated
+    expect(stillUnchangedNeurons).toBe(0); // No neurons should remain unchanged
   });
 
   it("should update all neurons when variables are modified", async () => {

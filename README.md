@@ -5,7 +5,7 @@ Note: This README assumes familiarity with ICP, the Network Nervous System (NNS)
 
 ## Create ICP Neuron Vectors
 
-This module integrates with pylons—canisters running the DeVeFi framework and governed by SNS DAOs on the ICP network—enabling users to create instances of ICP neuron vectors. To create the vector, a minimum creation fee is required, charged by the pylon. For example, the Neutrinite DAO pylons may charge a creation fee of 0.5 NTN, which is stored in the vector's billing account. By default, each vector includes configurable options such as destinations, sources, billing, and refund settings, among other features. 
+This module integrates with pylons—canisters running the DeVeFi framework and governed by SNS DAOs on the ICP network—enabling users to create instances of ICP neuron vectors. To create the vector, a minimum creation fee is required, charged by the pylon. For example, the Neutrinite DAO pylons may charge a creation fee of 2 NTN, which is stored in the vector's billing account. By default, each vector includes configurable options such as destinations, sources, billing, and refund settings, among other features. 
 
 Alongside these standard vector configurations, **the ICP neuron vector enables the pylon to stake neurons on behalf of vector owners while granting them control over the neuron.** The pylon achieves this by making calls to the Network Nervous System (NNS).
 
@@ -19,7 +19,7 @@ This ICRC-1 account accepts ICP tokens. Once you reach the minimum stake thresho
 
 **"_Maturity" source**
 
-This hidden ICRC-1 account is used internally to forward your ICP maturity to your destination account. Any maturity claimed from spawned neurons is routed here first before being forwarded to your destination.
+This hidden ICRC-1 account is used internally to forward your ICP maturity to your destination account. Any disbursed maturity is routed here first before being forwarded to your destination.
 
 ## Vector Destination Accounts
 
@@ -31,35 +31,43 @@ The ICRC-1 account where your claimed ICP maturity rewards are sent.
 
 **"Disburse" destination**
 
-The ICRC-1 account that will receive the ICP staked in your main neuron when it is dissolved.
+The ICRC-1 account that will receive the ICP staked in your main neuron if it is dissolved.
 
 
-## The Main Neuron
+## Multiple Neurons
 
-The staked neuron within the vector is referred to as the main neuron. When you spawn maturity, additional neurons—called spawning neurons—are created and also tracked in your vector's memory. All neurons controlled by your vector have a unique subaccount that includes the pylon's canister ID, your vector's ID, and a local vector ID. This ensures that your vector's neurons are fully traceable and allows your vector to own multiple neurons, which is necessary when spawning numerous maturity neurons.
+The neuron initially staked by the vector is called the main neuron (or `cache` internally). A single vector can also control additional split neurons (or `neuron_cache` internally). Each neuron managed by your vector has its own deterministic subaccount that encodes the pylon canister ID, your vector ID, a local neuron index, and a domain tag such as "neuron-stake" or "split-neuron." This structure makes every neuron fully traceable and allows your vector to safely manage multiple neurons, which is essential for advanced protocols and voting systems.
 
 
-**Configure your main neuron**
+**Configure your neurons**
 
-The main neuron can be configured by the vector controller, allowing you to maintain voting power and earn rewards. The available configurations are:
-
+The neurons can be configured by the vector controller. The available configurations are:
 ```javascript
 'variables': {
     'dissolve_delay': { 'Default': null } | { 'DelayDays': bigint },
     'dissolve_status': { 'Locked': null } | { 'Dissolving': null },
-    'followee': { 'Default': null } | { 'FolloweeId': bigint },
+    'followee': { 'None' : null } | { 'Default': null } | { 'FolloweeId': bigint },
+    'hotkey': { 'None' : null } | { 'HotkeyId' : Principal },
+    'visibility': { 'Private' : null } | { 'Public' : null },
 },
 ```
 
-- `dissolve_delay`: Setting this to `Default` locks the neuron for the minimum period required to earn maturity—currently 6 months. You can specify a custom duration up to 8 years using `DelayDays`. If you set `DelayDays` below 6 months, it defaults to 6 months; if above 8 years, it defaults to 8 years. You can increase the `dissolve_delay` later (by at least 1 week) if the neuron is in the `Locked` state.
+- dissolve_delay: Setting this to Default locks the neuron for the minimum period required to earn maturity (currently 6 months). You can specify a custom duration up to 8 years using DelayDays. Values below 6 months round up to 6 months; above 8 years cap at 8 years. You can only increase (never decrease) the dissolve_delay while the neuron is Locked, and increases must be at least 7 days.
 
-- `dissolve_status`: Switches your neuron's state between `Locked` and `Dissolving`. The neuron can only be disbursed if it's set to `Dissolving` and the dissolve delay has elapsed. The `dissolve_delay` can only be increased when the neuron is in the `Locked` state.
+- dissolve_status: Toggles the neuron between Locked and Dissolving. The neuron can only be disbursed after it is set to Dissolving and the full dissolve_delay has elapsed. You can only increase dissolve_delay while Locked.
 
-- `followee`: Determines which neuron your main neuron follows for voting on NNS proposals. It follows the specified neuron on all proposal topics. A `Default` option is provided (a neuron chosen by the developers), but it's recommended to select a specific `FolloweeId` (an NNS neuron ID) of your choice.
+- followee: Controls following across all NNS proposal topics. None clears any followee, Default uses a developer-selected neuron, FolloweeId sets an explicit neuron ID to follow.
 
-## Maturity Automation
+- hotkey: Assigns an optional hotkey principal that can submit proposals and vote with the neuron's voting power. None removes any existing hotkey. Hotkeys do not gain control over staking, disbursing, or configuration — only voting/proposing.
 
-An ICP neuron vector can spawn and control multiple spawning neurons with maturity. When a spawning neuron is ready to be claimed, its maturity is sent to your custom destination account. This process is entirely automatic—you can create and configure your main neuron and watch as ICP is sent to your destination account once enough maturity has accumulated to spawn (minimum of 1 ICP). The more ICP you stake, the faster you accrue maturity and ICP rewards are sent to the destination. Note that the NNS disburses maturity once per day, so vectors can spawn at most one neuron daily.
+- visibility: Controls access to neuron voting history. Private (default) restricts reads. Public allows any caller to inspect and audit the neuron's voting behavior for transparency.
+
+When you create the vector you can (and usually should) set: maturity destination, disburse destination, billing option (5% maturity or NTN daily), and any initial neuron variables (dissolve_delay, dissolve_status, followee, hotkey, visibility). After creation, any configuration change you submit is propagated to every neuron the vector manages (main + future split neurons). Typical flow:
+1. Create the vector with desired destinations, billing mode, and (optionally) initial neuron configuration.
+2. Fund the Stake source until the 20 ICP minimum is reached; the main neuron is then created, staked, and recorded in the vector.
+3. (Optional, anytime) Adjust dissolve_delay, dissolve_status, followee, hotkey, visibility; changes apply uniformly.
+4. Let maturity accrue. Once at least 1 ICP of spawnable maturity exists (after the NNS daily settlement), the vector can automatically spawn, claim, and forward rewards to the configured Maturity destination.
+5. Add more ICP to the Stake source at any time to increase voting power and future reward flow.
 
 ## Billing
 
@@ -74,9 +82,9 @@ For users opting for the NTN billing option, caution is advised: the tokens are 
 
 ## Use Cases
 
-The ICP neuron vector offers an easy-to-configure and automated neuron staking experience, simplifying the process for DAOs, organizations, and teams to stake neurons on the NNS without manual configurations, spawning, or claiming via a UI. Maturity rewards are automatically sent to your chosen destination account. The neurons stake can also be easily increased by sending additional ICP tokens to the vectors stake source account.
+The ICP neuron vector provides an easy-to-configure, automated neuron staking experience, allowing DAOs, organizations, and teams to stake neurons on the NNS without manual setup or manual maturity disbursal through a UI. In just a few proposals, a DAO can establish an ICP neuron. Maturity rewards are automatically sent to the configured destination account. The neuron's stake can be increased at any time by sending additional ICP to the vector's Stake source account.
 
-Additional use cases include trading systems that stake ICP and use the maturity rewards to purchase specific tokens. The ICP neuron vector can also interact with the broader ecosystem of vectors and integrate with throttle, splitting and liquidity vectors. The possibilities are extensive and surpass what is achievable with simple canister staking or UI-based staking.
+Additional use cases include trading systems that stake ICP and route maturity to acquire specific tokens, as well as vector-backed liquid staking protocols with advanced voting logic. The ICP neuron vector can also integrate with other vectors (e.g., throttle, splitting, liquidity), enabling composable governance and reward flows. These patterns extend far beyond what is possible with simple canister-based or UI-only staking.
 
 ## Running the Tests
 

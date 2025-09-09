@@ -118,7 +118,6 @@ module {
             if (not vec.active) return #err("Vector is not active");
             if (vec.billing.frozen) return #err("Vector is frozen");
 
-            // Validate that the neuronId exists in the node's neuron_cache
             let neuronExists = Array.find<Ver4.SharedNeuronCache>(
                 nodeMem.neuron_cache,
                 func(cachedNeuron : Ver4.SharedNeuronCache) : Bool {
@@ -161,7 +160,6 @@ module {
             if (vec.billing.frozen) return #err("Vector is frozen");
             if (amount_e8s < Constants.MINIMUM_SPLIT) return #err("Amount to split must be at least " # debug_show Constants.MINIMUM_SPLIT # " e8s");
 
-            // Validate that the neuronId exists in the node's neuron_cache
             let neuronExists = Array.find<Ver4.SharedNeuronCache>(
                 nodeMem.neuron_cache,
                 func(cachedNeuron : Ver4.SharedNeuronCache) : Bool {
