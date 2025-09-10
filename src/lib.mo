@@ -253,7 +253,7 @@ module {
 
             public func singleAsync(vid : T.NodeId, vec : T.NodeCoreMem, nodeMem : M.NodeMem) : async* () {
                 try {
-                    let neuron = NeuronActions({
+                    let actions = NeuronActions({
                         nns = nns;
                         nodeMem = nodeMem;
                         vid = vid;
@@ -261,16 +261,16 @@ module {
                         core = core;
                     });
 
-                    await* neuron.refresh_neuron();
-                    await* neuron.update_delay();
-                    await* neuron.update_following();
-                    await* neuron.update_dissolving();
-                    await* neuron.disburse_maturity();
-                    await* neuron.disburse_neuron();
-                    await* neuron.refresh_voting_power();
-                    await* neuron.update_hotkey();
-                    await* neuron.update_visibility();
-                    await* neuron.refresh_cache();
+                    await* actions.refresh_neuron();
+                    await* actions.update_delay();
+                    await* actions.update_following();
+                    await* actions.update_dissolving();
+                    await* actions.disburse_maturity();
+                    await* actions.disburse_neuron();
+                    await* actions.refresh_voting_power();
+                    await* actions.update_hotkey();
+                    await* actions.update_visibility();
+                    await* actions.refresh_cache();
                 } catch (err) {
                     NodeUtils.log_activity(nodeMem, "async_cycle", #Err(Error.message(err)));
                 } finally {
@@ -328,12 +328,24 @@ module {
                 case (null) { true };
             };
 
-            if (shouldDelete) {
-                ignore Map.remove(mem.main, Map.n32hash, vid);
-                return #ok();
+            if (not shouldDelete) {
+                return #err("Main neuron is not empty");
             };
 
-            return #err("Neuron is not empty");
+            // Check if any neuron in the neuron_cache has stake
+            for (cachedNeuron in t.neuron_cache.vals()) {
+                switch (cachedNeuron.cached_neuron_stake_e8s) {
+                    case (?stake) {
+                        if (stake > 0) {
+                            return #err("One or more neurons in cache still have stake");
+                        };
+                    };
+                    case (null) { /* continue checking */ };
+                };
+            };
+
+            ignore Map.remove(mem.main, Map.n32hash, vid);
+            return #ok();
         };
 
         public func modify(vid : T.NodeId, m : I.ModifyRequest) : T.Modify {

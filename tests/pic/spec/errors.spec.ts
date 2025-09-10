@@ -78,7 +78,7 @@ describe("Errors", () => {
 
   it("should error when attempting to delete a node with a neuron", async () => {
     await expect(manager.deleteNode(node.id)).rejects.toThrow(
-      "Neuron is not empty"
+      "Main neuron is not empty"
     );
   });
 });

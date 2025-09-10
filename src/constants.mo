@@ -57,4 +57,9 @@ module Constants {
         unlocked : Int32 = 3;
         spawning : Int32 = 4;
     };
+
+    public let NEURON_VISIBILITY = {
+        private_neuron : Int32 = 1;
+        public_neuron : Int32 = 2;
+    };
 };

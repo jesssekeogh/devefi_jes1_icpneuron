@@ -78,31 +78,27 @@ module CacheManager {
     };
 
     public func hotkeys_changed(nodeMem : IcpNeuronNodeMem) : ?Nat64 {
-        switch (nodeMem.variables.hotkey) {
-            case (#None) {
-                // If hotkeys should be empty, return first neuron that has any hotkeys
-                for (neuron in nodeMem.neuron_cache.vals()) {
-                    let neuronId = neuron.neuron_id;
+        for (neuron in nodeMem.neuron_cache.vals()) {
+            let neuronId = neuron.neuron_id;
+
+            switch (nodeMem.variables.hotkey) {
+                case (#None) {
                     if (neuron.hot_keys.size() > 0) return neuronId;
                 };
-                return null;
-            };
-            case (#HotkeyId(hotkeyToSet)) {
-                for (neuron in nodeMem.neuron_cache.vals()) {
-                    let neuronId = neuron.neuron_id;
-
-                    // Check if the specified hotkey exists in the hotkeys array
-                    let hotkeyExists = Array.find<Principal>(neuron.hot_keys, func(hotkey) { hotkey == hotkeyToSet });
-                    
+                case (#HotkeyId(hotkeyToSet)) {
+                    let hotkeyExists = Array.find<Principal>(
+                        neuron.hot_keys,
+                        func(hotkey) { hotkey == hotkeyToSet },
+                    );
                     switch (hotkeyExists) {
-                        case (null) { return neuronId }; // Hotkey not found
+                        case (null) { return neuronId };
                         case (?_) { /* Hotkey found, continue */ };
                     };
                 };
-
-                return null;
             };
         };
+
+        return null;
     };
 
     public func visibility_changed(nodeMem : IcpNeuronNodeMem) : ?Nat64 {
@@ -112,10 +108,10 @@ module CacheManager {
 
             switch (nodeMem.variables.visibility) {
                 case (#Private) {
-                    if (visibility != 1) return neuronId;
+                    if (visibility != Constants.NEURON_VISIBILITY.private_neuron) return neuronId;
                 };
                 case (#Public) {
-                    if (visibility != 2) return neuronId;
+                    if (visibility != Constants.NEURON_VISIBILITY.public_neuron) return neuronId;
                 };
             };
         };

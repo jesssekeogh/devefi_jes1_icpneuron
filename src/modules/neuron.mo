@@ -68,13 +68,14 @@ module {
 
             let neuronInfos = Map.fromIter<Nat64, GovTypes.NeuronInfo>(neuron_infos.vals(), Map.n64hash);
 
-            let neuronCache = Array.mapFilter<GovTypes.Neuron, Ver4.SharedNeuronCache>(
+            // Update the cache for all neurons
+            nodeMem.neuron_cache := Array.mapFilter<GovTypes.Neuron, Ver4.SharedNeuronCache>(
                 full_neurons,
                 func(full : GovTypes.Neuron) : ?Ver4.SharedNeuronCache {
                     let ?{ id } = full.id else return null;
                     let ?neuronNonce = Map.get(neuronNonces, Map.bhash, full.account) else return null;
                     let ?info = Map.get(neuronInfos, Map.n64hash, id) else return null;
-                    
+
                     // Update the cache if this is the main neuron
                     if (neuronNonce == mainNeuronNonce) {
                         nodeMem.cache.neuron_id := ?id;
@@ -115,14 +116,12 @@ module {
                     };
                 },
             );
-
-            nodeMem.neuron_cache := neuronCache;
         };
 
         public func refresh_neuron() : async* () {
+            let ?refreshIdx = nodeMem.internals.refresh_idx else return;
             let firstNonce = NodeUtils.get_neuron_nonce(vid, 0); // first localIdx for every neuron is always 0
             let ?{ cls = #icp(ledger) } = core.get_ledger_cls(Principal.fromText(Constants.ICP_LEDGER_CANISTER_ID)) else return;
-            let ?refreshIdx = nodeMem.internals.refresh_idx else return;
 
             if (ledger.isSent(refreshIdx)) {
                 switch (await* nns.claimNeuron({ nonce = firstNonce })) {
@@ -185,9 +184,7 @@ module {
 
             let neuron = NNS.Neuron({
                 nns_canister_id = Principal.fromText(Constants.NNS_CANISTER_ID);
-                neuron_id_or_subaccount = #NeuronId({
-                    id = neuron_id;
-                });
+                neuron_id_or_subaccount = #NeuronId({ id = neuron_id });
             });
 
             let followeesToSet = switch (nodeMem.variables.followee) {
@@ -347,8 +344,8 @@ module {
             });
 
             let visibilityToSet : Int32 = switch (nodeMem.variables.visibility) {
-                case (#Private) { 1 };
-                case (#Public) { 2 };
+                case (#Private) { Constants.NEURON_VISIBILITY.private_neuron };
+                case (#Public) { Constants.NEURON_VISIBILITY.public_neuron };
             };
 
             switch (await* neuron.setVisibility({ visibility = visibilityToSet })) {
